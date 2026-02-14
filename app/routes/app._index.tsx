@@ -12,12 +12,11 @@ import {
   InlineStack,
   Layout,
   Page,
-  ProgressBar,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { getSettings } from "../loyalty.server";
-import { DEFAULT_SETTINGS } from "../loyalty.shared";
+import { DEFAULT_SETTINGS, CREDIT_EXPIRY_OPTIONS } from "../loyalty.shared";
 import type { LoyaltySettings } from "../loyalty.shared";
 import prisma from "../db.server";
 
@@ -32,7 +31,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     settings = DEFAULT_SETTINGS;
   }
 
-  // Stats
   let stats = {
     totalCreditsAwarded: 0,
     totalTransactions: 0,
@@ -51,11 +49,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     createdAt: string;
   }> = [];
 
-  // Setup checklist
   const setupChecks = {
     hasTiers: settings.tiers.length > 0,
     isEnabled: settings.enabled,
-    hasWebhook: true, // Assume registered if app is installed
   };
 
   try {
@@ -126,8 +122,11 @@ export default function Dashboard() {
   const { settings, stats, recentActivity, setupChecks } =
     useLoaderData<typeof loader>();
 
-  const allSetUp =
-    setupChecks.hasTiers && setupChecks.isEnabled;
+  const allSetUp = setupChecks.hasTiers && setupChecks.isEnabled;
+  const expiryLabel =
+    CREDIT_EXPIRY_OPTIONS.find(
+      (o) => o.value === ((settings as any).creditExpiry || "1_year"),
+    )?.label || "1 year";
 
   return (
     <Page title="Loyalty Credits">
@@ -153,7 +152,8 @@ export default function Dashboard() {
                       Configure spending tiers
                     </Text>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Set up credit percentages for different spending levels
+                      Set credit percentages for different 12-month spending
+                      levels
                     </Text>
                   </BlockStack>
                   {!setupChecks.hasTiers && (
@@ -190,8 +190,9 @@ export default function Dashboard() {
         {settings.enabled ? (
           <Banner title="Your loyalty program is active" tone="success">
             <p>
-              Customers earn native Shopify store credit on every purchase.
-              Credit is usable at checkout, on Shop Pay, and at POS.
+              Customers earn store credit on every purchase. Tiers are based on
+              a rolling 12-month spending window. Credit expires after{" "}
+              {expiryLabel.toLowerCase()}.
             </p>
           </Banner>
         ) : (
@@ -263,7 +264,6 @@ export default function Dashboard() {
         </InlineGrid>
 
         <Layout>
-          {/* Main content */}
           <Layout.Section>
             <BlockStack gap="400">
               {/* Tiers overview */}
@@ -279,8 +279,9 @@ export default function Dashboard() {
                   </InlineStack>
 
                   <Text variant="bodyMd" as="p" tone="subdued">
-                    Customers move up tiers as they spend more and earn
-                    higher credit percentages.
+                    Tiers are based on spending in the last 12 months. Customers
+                    earn their tier's percentage as store credit after every
+                    order.
                   </Text>
 
                   <Divider />
@@ -295,8 +296,8 @@ export default function Dashboard() {
                           .filter((t) => t.minSpend > tier.minSpend)
                           .sort((a, b) => a.minSpend - b.minSpend)[0];
                         const range = nextTier
-                          ? `${settings.currencyCode} ${tier.minSpend} – ${nextTier.minSpend}`
-                          : `${settings.currencyCode} ${tier.minSpend}+`;
+                          ? `${settings.currencyCode} ${tier.minSpend.toLocaleString()} – ${nextTier.minSpend.toLocaleString()}`
+                          : `${settings.currencyCode} ${tier.minSpend.toLocaleString()}+`;
 
                         return (
                           <Card key={index}>
@@ -313,12 +314,15 @@ export default function Dashboard() {
                                 </Badge>
                               </InlineStack>
                               <Text variant="bodySm" as="p" tone="subdued">
-                                {range}
+                                {range} in 12 months
                               </Text>
                               <Text variant="bodySm" as="p">
-                                A {settings.currencyCode} 100 order earns{" "}
+                                {settings.currencyCode} 100 order ={" "}
                                 {settings.currencyCode}{" "}
-                                {(100 * tier.creditPercentage / 100).toFixed(2)}{" "}
+                                {(
+                                  (100 * tier.creditPercentage) /
+                                  100
+                                ).toFixed(2)}{" "}
                                 credit
                               </Text>
                             </BlockStack>
@@ -408,7 +412,7 @@ export default function Dashboard() {
                             Settings
                           </Text>
                           <Text variant="bodySm" as="p" tone="subdued">
-                            Program options, currency, yearly reset
+                            Credit expiry, currency, enable/disable
                           </Text>
                         </BlockStack>
                       </Box>
@@ -447,25 +451,18 @@ export default function Dashboard() {
                   </InlineStack>
                   <InlineStack align="space-between">
                     <Text as="span" tone="subdued">
-                      Yearly reset
+                      Tier window
                     </Text>
-                    <Badge tone={settings.yearlyReset ? "info" : "enabled"}>
-                      {settings.yearlyReset ? "On" : "Off"}
-                    </Badge>
+                    <Badge tone="info">Rolling 12 months</Badge>
                   </InlineStack>
-                  {settings.yearlyReset && (
-                    <InlineStack align="space-between">
-                      <Text as="span" tone="subdued">
-                        Resets in
-                      </Text>
-                      <Text as="span" fontWeight="semibold">
-                        {new Date(2026, settings.resetMonth - 1).toLocaleString(
-                          "en",
-                          { month: "long" },
-                        )}
-                      </Text>
-                    </InlineStack>
-                  )}
+                  <InlineStack align="space-between">
+                    <Text as="span" tone="subdued">
+                      Credit expires
+                    </Text>
+                    <Text as="span" fontWeight="semibold">
+                      {expiryLabel}
+                    </Text>
+                  </InlineStack>
                 </BlockStack>
               </Card>
 
@@ -484,11 +481,19 @@ export default function Dashboard() {
                   {recentActivity.length > 0 ? (
                     <BlockStack gap="200">
                       {recentActivity.map((item) => (
-                        <Box key={item.id} paddingBlockStart="100" paddingBlockEnd="100">
+                        <Box
+                          key={item.id}
+                          paddingBlockStart="100"
+                          paddingBlockEnd="100"
+                        >
                           <InlineStack align="space-between">
                             <BlockStack gap="050">
                               <InlineStack gap="100" blockAlign="center">
-                                <Text variant="bodySm" as="p" fontWeight="semibold">
+                                <Text
+                                  variant="bodySm"
+                                  as="p"
+                                  fontWeight="semibold"
+                                >
                                   +{settings.currencyCode}{" "}
                                   {item.amount.toFixed(2)}
                                 </Text>
@@ -512,8 +517,8 @@ export default function Dashboard() {
                     </BlockStack>
                   ) : (
                     <Text variant="bodySm" as="p" tone="subdued">
-                      No activity yet. Credits appear here when customers
-                      make purchases.
+                      No activity yet. Credits appear here when customers make
+                      purchases.
                     </Text>
                   )}
                 </BlockStack>
@@ -531,22 +536,23 @@ export default function Dashboard() {
                       1. Customer places an order and pays
                     </Text>
                     <Text as="p" variant="bodySm">
-                      2. Their cumulative spending determines their tier
+                      2. App checks their spending in the last 12 months
                     </Text>
                     <Text as="p" variant="bodySm">
-                      3. Store credit is awarded based on the tier %
+                      3. Their tier determines the cashback percentage
                     </Text>
                     <Text as="p" variant="bodySm">
-                      4. Credit appears in their account instantly
+                      4. Store credit is awarded instantly to their account
                     </Text>
                     <Text as="p" variant="bodySm">
-                      5. They redeem at checkout or POS
+                      5. Credit auto-applies at checkout, Shop Pay, or POS
                     </Text>
                   </BlockStack>
                   <Divider />
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Native Shopify store credit — no gift cards, works
-                    at checkout, Shop Pay, and POS.
+                    If a customer doesn't purchase for 12 months, their spending
+                    window empties and they drop to the lowest tier. Existing
+                    credit balance stays — only the tier resets.
                   </Text>
                 </BlockStack>
               </Card>

@@ -27,7 +27,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { addStoreCredit, getSettings, getCustomerLoyaltyData } from "../loyalty.server";
+import { addStoreCredit, getSettings } from "../loyalty.server";
 import { getTierForSpend } from "../loyalty.shared";
 import type { LoyaltySettings } from "../loyalty.shared";
 import prisma from "../db.server";
@@ -43,14 +43,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     settings = await getSettings(admin);
   } catch {
-    settings = {
-      tiers: [], currencyCode: "EUR", enabled: false,
-      rollingWindow: true, creditExpiry: "1_year" as const,
-      bonuses: {
-        referralEnabled: false, referralAmount: 0,
-        referralNewCustomerAmount: 0, milestoneEnabled: false, milestones: [],
-      },
-    };
+    const shared = await import("../loyalty.shared");
+    settings = shared.DEFAULT_SETTINGS;
   }
 
   let customers: Array<{
@@ -58,11 +52,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     name: string;
     email: string;
     orders: string;
-    totalSpent: string;
-    storeCredit: string;
-    loyaltySpent: number;
-    loyaltyEarned: number;
+    totalSpent: number;
+    totalSpentFormatted: string;
     tierName: string;
+    tierPercentage: number;
     nextTierName: string | null;
     nextTierMinSpend: number | null;
     spendProgress: number;
@@ -71,7 +64,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (search.length >= 2) {
     try {
-      // Search customers (without storeCreditAccounts to avoid scope errors)
       const response = await admin.graphql(
         `#graphql
         query SearchCustomers($query: String!, $first: Int!) {
@@ -96,56 +88,48 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const data = await response.json();
       const nodes = data.data?.customers?.nodes || [];
 
-      customers = await Promise.all(
-        nodes.map(async (c: any) => {
-          let loyaltyData = { totalSpent: 0, totalEarned: 0, periodSpent: 0, storeCreditBalance: null as string | null };
-          try {
-            loyaltyData = await getCustomerLoyaltyData(admin, c.id);
-          } catch {}
-
-          // Rolling 12-month spend for tier
-          const spendForTier = loyaltyData.periodSpent;
-
-          const sortedTiers = [...settings.tiers].sort(
-            (a, b) => a.minSpend - b.minSpend,
-          );
-          const tier =
-            sortedTiers.length > 0
-              ? getTierForSpend(sortedTiers, spendForTier)
-              : null;
-          const tierIndex = tier
-            ? sortedTiers.findIndex((t) => t.minSpend === tier.minSpend)
-            : -1;
-          const nextTier =
-            tierIndex >= 0 && tierIndex < sortedTiers.length - 1
-              ? sortedTiers[tierIndex + 1]
-              : null;
-
-          let spendProgress = 100;
-          if (nextTier && tier) {
-            const range = nextTier.minSpend - tier.minSpend;
-            const progress = spendForTier - tier.minSpend;
-            spendProgress = range > 0 ? Math.min((progress / range) * 100, 100) : 100;
-          }
-
-          return {
-            id: c.id,
-            name: c.displayName || "Unknown",
-            email: c.defaultEmailAddress?.emailAddress || "",
-            orders: c.numberOfOrders || "0",
-            totalSpent: `${c.amountSpent?.currencyCode || settings.currencyCode} ${parseFloat(c.amountSpent?.amount || "0").toFixed(2)}`,
-            storeCredit: loyaltyData.storeCreditBalance
-              ? `${settings.currencyCode} ${parseFloat(loyaltyData.storeCreditBalance).toFixed(2)}`
-              : "—",
-            loyaltySpent: spendForTier,
-            loyaltyEarned: loyaltyData.totalEarned,
-            tierName: tier?.name || "—",
-            nextTierName: nextTier?.name || null,
-            nextTierMinSpend: nextTier?.minSpend || null,
-            spendProgress,
-          };
-        }),
+      const sortedTiers = [...settings.tiers].sort(
+        (a, b) => a.minSpend - b.minSpend,
       );
+
+      customers = nodes.map((c: any) => {
+        const totalSpent = parseFloat(c.amountSpent?.amount || "0");
+
+        // Estimate tier from amountSpent (best available without slow API calls)
+        const tier =
+          sortedTiers.length > 0
+            ? getTierForSpend(sortedTiers, totalSpent)
+            : null;
+        const tierIndex = tier
+          ? sortedTiers.findIndex((t) => t.minSpend === tier.minSpend)
+          : -1;
+        const nextTier =
+          tierIndex >= 0 && tierIndex < sortedTiers.length - 1
+            ? sortedTiers[tierIndex + 1]
+            : null;
+
+        let spendProgress = 100;
+        if (nextTier && tier) {
+          const range = nextTier.minSpend - tier.minSpend;
+          const progress = totalSpent - tier.minSpend;
+          spendProgress =
+            range > 0 ? Math.min((progress / range) * 100, 100) : 100;
+        }
+
+        return {
+          id: c.id,
+          name: c.displayName || "Unknown",
+          email: c.defaultEmailAddress?.emailAddress || "",
+          orders: c.numberOfOrders || "0",
+          totalSpent,
+          totalSpentFormatted: `${c.amountSpent?.currencyCode || settings.currencyCode} ${totalSpent.toFixed(2)}`,
+          tierName: tier?.name || "—",
+          tierPercentage: tier?.creditPercentage || 0,
+          nextTierName: nextTier?.name || null,
+          nextTierMinSpend: nextTier?.minSpend || null,
+          spendProgress,
+        };
+      });
     } catch (e: any) {
       console.error("[customers] Search failed:", e);
       searchError = e?.message || "Search failed";
@@ -173,10 +157,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     try {
       const settings = await getSettings(admin);
-      const result = await addStoreCredit(admin, customerId, amount, settings.currencyCode);
+      const result = await addStoreCredit(
+        admin,
+        customerId,
+        amount,
+        settings.currencyCode,
+      );
 
       if (!result.success) {
-        return { success: false, error: result.error || "Failed to add credit" };
+        return {
+          success: false,
+          error: result.error || "Failed to add credit",
+        };
       }
 
       await prisma.loyaltyLog.create({
@@ -206,7 +198,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function Customers() {
-  const { customers, search, settings, searchError } = useLoaderData<typeof loader>();
+  const loaderData = useLoaderData<typeof loader>();
+  const { customers, search, settings, searchError } = loaderData;
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -216,7 +209,7 @@ export default function Customers() {
   const [searchValue, setSearchValue] = useState(search);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced search via URL params (preserves embedded auth)
+  // Debounced search via URL params
   const handleSearchChange = useCallback(
     (value: string) => {
       setSearchValue(value);
@@ -262,7 +255,10 @@ export default function Customers() {
     formData.set("intent", "add-credit");
     formData.set("customerId", selectedCustomer.id);
     formData.set("amount", creditAmount);
-    formData.set("note", creditNote || `Manual credit for ${selectedCustomer.name}`);
+    formData.set(
+      "note",
+      creditNote || `Manual credit for ${selectedCustomer.name}`,
+    );
     submit(formData, { method: "post" });
     setModalOpen(false);
   }, [selectedCustomer, creditAmount, creditNote, submit]);
@@ -289,7 +285,9 @@ export default function Customers() {
         {/* Search */}
         <Card>
           <BlockStack gap="300">
-            <Text variant="headingMd" as="h2">Find a customer</Text>
+            <Text variant="headingMd" as="h2">
+              Find a customer
+            </Text>
             <TextField
               label="Search"
               labelHidden
@@ -297,7 +295,11 @@ export default function Customers() {
               onChange={handleSearchChange}
               placeholder="Start typing a name, email, or phone number..."
               autoComplete="off"
-              suffix={isSearching && hasSearch ? <Spinner size="small" /> : undefined}
+              suffix={
+                isSearching && hasSearch ? (
+                  <Spinner size="small" />
+                ) : undefined
+              }
               helpText={
                 searchValue.length > 0 && searchValue.length < 2
                   ? "Type at least 2 characters to search"
@@ -319,12 +321,22 @@ export default function Customers() {
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="start">
                     <BlockStack gap="100">
-                      <Text variant="headingSm" as="h3">{c.name}</Text>
-                      <Text variant="bodySm" as="p" tone="subdued">{c.email}</Text>
+                      <Text variant="headingSm" as="h3">
+                        {c.name}
+                      </Text>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        {c.email}
+                      </Text>
                     </BlockStack>
                     <InlineStack gap="200">
                       <Badge tone="info">{c.tierName}</Badge>
-                      <Button variant="plain" onClick={() => openCreditModal(c.id, c.name)}>
+                      <Text variant="bodySm" as="span" tone="subdued">
+                        {c.tierPercentage}% cashback
+                      </Text>
+                      <Button
+                        variant="plain"
+                        onClick={() => openCreditModal(c.id, c.name)}
+                      >
                         Add credit
                       </Button>
                     </InlineStack>
@@ -332,23 +344,30 @@ export default function Customers() {
 
                   <Divider />
 
-                  <InlineGrid columns={4} gap="400">
+                  <InlineGrid columns={3} gap="400">
                     <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">Orders</Text>
-                      <Text variant="headingSm" as="p">{c.orders}</Text>
-                    </BlockStack>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">Total spent</Text>
-                      <Text variant="headingSm" as="p">{c.totalSpent}</Text>
-                    </BlockStack>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">Store credit</Text>
-                      <Text variant="headingSm" as="p">{c.storeCredit}</Text>
-                    </BlockStack>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">Credits earned</Text>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Orders
+                      </Text>
                       <Text variant="headingSm" as="p">
-                        {settings.currencyCode} {c.loyaltyEarned.toFixed(2)}
+                        {c.orders}
+                      </Text>
+                    </BlockStack>
+                    <BlockStack gap="050">
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Total spent
+                      </Text>
+                      <Text variant="headingSm" as="p">
+                        {c.totalSpentFormatted}
+                      </Text>
+                    </BlockStack>
+                    <BlockStack gap="050">
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Est. cashback on €100 order
+                      </Text>
+                      <Text variant="headingSm" as="p">
+                        {settings.currencyCode}{" "}
+                        {c.tierPercentage.toFixed(2)}
                       </Text>
                     </BlockStack>
                   </InlineGrid>
@@ -363,10 +382,18 @@ export default function Customers() {
                           </Text>
                           <Text variant="bodySm" as="p" tone="subdued">
                             {settings.currencyCode}{" "}
-                            {Math.max(0, (c.nextTierMinSpend || 0) - c.loyaltySpent).toFixed(0)} to go
+                            {Math.max(
+                              0,
+                              (c.nextTierMinSpend || 0) - c.totalSpent,
+                            ).toFixed(0)}{" "}
+                            to go
                           </Text>
                         </InlineStack>
-                        <ProgressBar progress={c.spendProgress} tone="primary" size="small" />
+                        <ProgressBar
+                          progress={c.spendProgress}
+                          tone="primary"
+                          size="small"
+                        />
                       </BlockStack>
                     </>
                   )}
@@ -377,7 +404,7 @@ export default function Customers() {
                       <InlineStack gap="200" blockAlign="center">
                         <Badge tone="success">Top tier</Badge>
                         <Text variant="bodySm" as="p" tone="subdued">
-                          Highest loyalty level
+                          Highest cashback level
                         </Text>
                       </InlineStack>
                     </>
@@ -388,34 +415,33 @@ export default function Customers() {
           </BlockStack>
         )}
 
-        {hasSearch && customers.length === 0 && !isSearching && !searchError && (
-          <Card>
-            <EmptyState heading="No customers found" image="">
-              <p>Try a different name, email, or phone number.</p>
-            </EmptyState>
-          </Card>
-        )}
+        {hasSearch &&
+          customers.length === 0 &&
+          !isSearching &&
+          !searchError && (
+            <Card>
+              <EmptyState heading="No customers found" image="">
+                <p>Try a different name, email, or phone number.</p>
+              </EmptyState>
+            </Card>
+          )}
 
         {!hasSearch && (
           <Card>
             <BlockStack gap="400">
-              <Text variant="headingMd" as="h2">Customer Loyalty</Text>
+              <Text variant="headingMd" as="h2">
+                Customer Loyalty
+              </Text>
               <Divider />
               <Text variant="bodyMd" as="p">
-                Search for any customer to see their loyalty tier, spending
-                history, and store credit balance. You can also manually add
-                store credit.
+                Search for any customer to see their estimated loyalty tier,
+                spending history, and progress. You can also manually add store
+                credit.
               </Text>
-              <BlockStack gap="200">
-                <InlineStack gap="200" blockAlign="center">
-                  <Badge tone="info">Tier tracking</Badge>
-                  <Text variant="bodyMd" as="p">See each customer's tier and progress</Text>
-                </InlineStack>
-                <InlineStack gap="200" blockAlign="center">
-                  <Badge tone="success">Manual credits</Badge>
-                  <Text variant="bodyMd" as="p">Add credit for returns, referrals, or promotions</Text>
-                </InlineStack>
-              </BlockStack>
+              <Text variant="bodySm" as="p" tone="subdued">
+                Tier is estimated from total spending. The actual tier at credit
+                time is calculated from orders in the last 12 months.
+              </Text>
             </BlockStack>
           </Card>
         )}

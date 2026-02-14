@@ -1,6 +1,7 @@
 {% comment %}
   Loyalty Credits Banner Block
-  Lightweight banner showing earn percentage on product/collection pages.
+  Lightweight banner for any page showing earn rates.
+  Tier percentages are configurable by the merchant in the theme editor.
 {% endcomment %}
 
 <div class="loyalty-banner" style="
@@ -16,15 +17,29 @@
     <span style="font-size: 20px;">{{ block.settings.icon }}</span>
   {% endif %}
 
-  <div>
+  <div style="flex: 1;">
     <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 500;">
       {{ block.settings.banner_text }}
     </p>
 
-    {% if block.settings.show_subtext and customer %}
+    {% if block.settings.show_tiers %}
+      <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">
+        {% if block.settings.tier1_name != blank %}
+          {{ block.settings.tier1_name }}: {{ block.settings.tier1_pct }}%
+        {% endif %}
+        {% if block.settings.tier2_name != blank %}
+          · {{ block.settings.tier2_name }}: {{ block.settings.tier2_pct }}%
+        {% endif %}
+        {% if block.settings.tier3_name != blank %}
+          · {{ block.settings.tier3_name }}: {{ block.settings.tier3_pct }}%
+        {% endif %}
+      </p>
+    {% endif %}
+
+    {% if block.settings.show_balance and customer %}
       {% assign loyalty_balance = customer.metafields.app.loyalty_total_earned.value | default: 0 %}
-      <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.8;">
-        Your current balance: {{ loyalty_balance | money_without_trailing_zeros }}
+      <p style="margin: 2px 0 0; font-size: 12px; opacity: 0.8;">
+        Your balance: {{ loyalty_balance | money_without_trailing_zeros }}
       </p>
     {% endif %}
   </div>
@@ -82,12 +97,62 @@
     {
       "type": "text",
       "id": "icon",
-      "label": "Icon emoji",
-      "default": "⭐"
+      "label": "Icon",
+      "default": "★"
+    },
+    {
+      "type": "header",
+      "content": "Tiers (match your app settings)"
     },
     {
       "type": "checkbox",
-      "id": "show_subtext",
+      "id": "show_tiers",
+      "label": "Show tier percentages",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "tier1_name",
+      "label": "Tier 1 name",
+      "default": "Bronze"
+    },
+    {
+      "type": "text",
+      "id": "tier1_pct",
+      "label": "Tier 1 %",
+      "default": "5"
+    },
+    {
+      "type": "text",
+      "id": "tier2_name",
+      "label": "Tier 2 name",
+      "default": "Silver"
+    },
+    {
+      "type": "text",
+      "id": "tier2_pct",
+      "label": "Tier 2 %",
+      "default": "7"
+    },
+    {
+      "type": "text",
+      "id": "tier3_name",
+      "label": "Tier 3 name",
+      "default": "Gold"
+    },
+    {
+      "type": "text",
+      "id": "tier3_pct",
+      "label": "Tier 3 %",
+      "default": "10"
+    },
+    {
+      "type": "header",
+      "content": "Balance"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_balance",
       "label": "Show balance for logged-in customers",
       "default": true
     }
