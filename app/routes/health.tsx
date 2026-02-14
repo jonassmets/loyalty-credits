@@ -1,8 +1,10 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const checks: Record<string, string> = {};
+  const url = new URL(request.url);
+  const checks: Record<string, any> = {};
 
   // Check env vars
   checks.SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY ? "set" : "MISSING";
@@ -17,6 +19,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     checks.database = `connected (${sessionCount} sessions)`;
   } catch (error: any) {
     checks.database = `ERROR: ${error.message}`;
+  }
+
+  // If ?test-auth is set, try to authenticate
+  if (url.searchParams.has("test-auth")) {
+    try {
+      await authenticate.admin(request);
+      checks.auth = "success";
+    } catch (error: any) {
+      if (error instanceof Response) {
+        checks.auth = `Response: ${error.status} ${error.statusText}`;
+        try {
+          const body = await error.clone().text();
+          checks.authBody = body.substring(0, 500);
+        } catch {}
+      } else {
+        checks.auth = `Error: ${error.message}`;
+        checks.authStack = error.stack?.split("\n").slice(0, 5);
+      }
+    }
   }
 
   return new Response(JSON.stringify(checks, null, 2), {

@@ -14,7 +14,21 @@ import { authenticate } from "../shopify.server";
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const url = new URL(request.url);
+  console.log("[app.tsx loader] URL:", url.pathname + url.search);
+  console.log("[app.tsx loader] Headers:", Object.fromEntries(request.headers.entries()));
+
+  try {
+    await authenticate.admin(request);
+  } catch (error) {
+    if (error instanceof Response) {
+      console.log("[app.tsx loader] Auth threw Response:", error.status, error.statusText);
+      throw error; // Re-throw Response objects (410 bounce, redirects, etc.)
+    }
+    console.error("[app.tsx loader] Auth threw Error:", error);
+    throw error;
+  }
+
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
