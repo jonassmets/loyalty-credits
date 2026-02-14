@@ -13,19 +13,22 @@ import { authenticate } from "../shopify.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const url = new URL(request.url);
-  console.log("[app.tsx loader] URL:", url.pathname + url.search);
-  console.log("[app.tsx loader] Headers:", Object.fromEntries(request.headers.entries()));
+// Store last error for debugging via /health?last-error
+(globalThis as any).__lastAppError = null;
 
+export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     await authenticate.admin(request);
   } catch (error) {
     if (error instanceof Response) {
-      console.log("[app.tsx loader] Auth threw Response:", error.status, error.statusText);
       throw error; // Re-throw Response objects (410 bounce, redirects, etc.)
     }
-    console.error("[app.tsx loader] Auth threw Error:", error);
+    // Store the error for debugging
+    (globalThis as any).__lastAppError = {
+      message: (error as Error).message,
+      stack: (error as Error).stack?.split("\n").slice(0, 8),
+      time: new Date().toISOString(),
+    };
     throw error;
   }
 

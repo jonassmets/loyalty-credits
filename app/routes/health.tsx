@@ -40,6 +40,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  // Show last captured error
+  if (url.searchParams.has("last-error")) {
+    checks.lastError = (globalThis as any).__lastAppError || "No errors captured";
+  }
+
   return new Response(JSON.stringify(checks, null, 2), {
     headers: { "Content-Type": "application/json" },
   });
