@@ -1,10 +1,8 @@
 {% comment %}
   Loyalty Credits - Floating Widget (App Embed)
-  Dynamic: shows customer's actual tier, progress bar, and balance when logged in.
-  Shows program overview for guests.
+  Fully configurable: colors, fonts, position, size, content — all via theme editor.
 {% endcomment %}
 
-{% comment %} Tier configuration from block settings {% endcomment %}
 {% assign t1_name = block.settings.tier1_name %}
 {% assign t1_pct = block.settings.tier1_pct | times: 1.0 %}
 {% assign t1_min = block.settings.tier1_min | times: 1.0 %}
@@ -15,7 +13,6 @@
 {% assign t3_pct = block.settings.tier3_pct | times: 1.0 %}
 {% assign t3_min = block.settings.tier3_min | times: 1.0 %}
 
-{% comment %} Determine customer tier {% endcomment %}
 {% assign current_tier_name = t1_name %}
 {% assign current_pct = t1_pct %}
 {% assign current_tier_idx = 0 %}
@@ -51,12 +48,6 @@
     {% endif %}
     {% assign to_next = t3_min | minus: total_spent %}
   {% else %}
-    {% assign current_tier_name = t1_name %}
-    {% assign current_pct = t1_pct %}
-    {% assign current_tier_idx = 0 %}
-    {% assign next_tier_name = t2_name %}
-    {% assign next_tier_min = t2_min %}
-    {% assign next_tier_pct = t2_pct %}
     {% assign range = t2_min | minus: t1_min %}
     {% assign done = total_spent | minus: t1_min %}
     {% if range > 0 %}
@@ -70,34 +61,42 @@
   {% if to_next < 0 %}{% assign to_next = 0 %}{% endif %}
 {% endif %}
 
+{% case block.settings.font_family %}
+  {% when 'sans' %}{% assign ff = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" %}
+  {% when 'serif' %}{% assign ff = "Georgia, 'Times New Roman', serif" %}
+  {% when 'mono' %}{% assign ff = "'SF Mono', Menlo, monospace" %}
+  {% when 'inherit' %}{% assign ff = "inherit" %}
+{% endcase %}
+
 <div id="loyalty-embed" style="
   position: fixed;
-  {{ block.settings.position }}: 20px;
-  bottom: 20px;
+  {{ block.settings.position }}: {{ block.settings.offset_x }}px;
+  bottom: {{ block.settings.offset_y }}px;
   z-index: 9999;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: {{ ff }};
 ">
   <!-- Toggle button -->
   <button id="loyalty-embed-toggle" aria-label="Loyalty rewards" style="
-    background: {{ block.settings.bg_color }};
-    color: {{ block.settings.text_color }};
-    border: none;
-    border-radius: 50px;
-    padding: 12px 20px;
-    font-size: 14px;
-    font-weight: 600;
+    background: {{ block.settings.btn_bg }};
+    color: {{ block.settings.btn_text }};
+    border: {{ block.settings.btn_border_width }}px solid {{ block.settings.btn_border_color }};
+    border-radius: {{ block.settings.btn_radius }}px;
+    padding: {{ block.settings.btn_padding_y }}px {{ block.settings.btn_padding_x }}px;
+    font-family: {{ ff }};
+    font-size: {{ block.settings.btn_font_size }}px;
+    font-weight: {{ block.settings.btn_font_weight }};
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    box-shadow: {{ block.settings.shadow }};
     display: flex;
     align-items: center;
     gap: 8px;
     transition: transform 0.2s;
   ">
-    <span>{{ block.settings.icon }}</span>
+    {% if block.settings.show_icon %}<span>{{ block.settings.icon }}</span>{% endif %}
     {% if customer %}
-      <span>{{ current_tier_name }} · {{ current_pct | divided_by: 100.0 }}%</span>
+      <span>{{ block.settings.btn_logged_in_prefix }} {{ current_tier_name }} · {{ current_pct | divided_by: 100.0 }}%</span>
     {% else %}
-      <span>Earn up to {{ t3_pct | divided_by: 100.0 }}% back</span>
+      <span>{{ block.settings.btn_guest_text }}</span>
     {% endif %}
   </button>
 
@@ -105,114 +104,101 @@
   <div id="loyalty-embed-panel" style="
     display: none;
     position: absolute;
-    bottom: 56px;
+    bottom: {{ block.settings.btn_padding_y | plus: block.settings.btn_font_size | plus: 20 }}px;
     {{ block.settings.position }}: 0;
-    background: {{ block.settings.bg_color }};
-    color: {{ block.settings.text_color }};
-    border-radius: 16px;
-    padding: 24px;
-    min-width: 300px;
-    max-width: 340px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    background: {{ block.settings.panel_bg }};
+    color: {{ block.settings.panel_text }};
+    border-radius: {{ block.settings.panel_radius }}px;
+    padding: {{ block.settings.panel_padding }}px;
+    min-width: {{ block.settings.panel_width }}px;
+    max-width: {{ block.settings.panel_width }}px;
+    border: {{ block.settings.panel_border_width }}px solid {{ block.settings.panel_border_color }};
+    box-shadow: {{ block.settings.shadow }};
+    font-family: {{ ff }};
   ">
     {% if customer %}
-      <!-- LOGGED IN: show tier, progress, balance -->
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
         <div>
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Your Tier</div>
-          <div style="font-size: 22px; font-weight: 800; color: {{ block.settings.accent_color }}; margin-top: 2px;">
+          <div style="font-size: {{ block.settings.panel_label_size }}px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Your Tier</div>
+          <div style="font-size: {{ block.settings.panel_heading_size }}px; font-weight: 800; color: {{ block.settings.accent_color }}; margin-top: 2px;">
             {{ current_tier_name }}
           </div>
         </div>
-        <div style="text-align: right;">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Balance</div>
-          <div style="font-size: 20px; font-weight: 700; color: {{ block.settings.accent_color }}; margin-top: 2px;">
-            {{ balance | money_without_trailing_zeros }}
+        {% if block.settings.show_balance %}
+          <div style="text-align: right;">
+            <div style="font-size: {{ block.settings.panel_label_size }}px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Balance</div>
+            <div style="font-size: {{ block.settings.panel_heading_size | minus: 2 }}px; font-weight: 700; color: {{ block.settings.accent_color }}; margin-top: 2px;">
+              {{ balance | money_without_trailing_zeros }}
+            </div>
           </div>
-        </div>
+        {% endif %}
       </div>
 
-      <div style="font-size: 14px; margin-bottom: 16px;">
+      <div style="font-size: {{ block.settings.panel_body_size }}px; margin-bottom: 16px;">
         You get <strong style="color: {{ block.settings.accent_color }};">{{ current_pct | divided_by: 100.0 }}%</strong> cashback on every purchase
       </div>
 
-      <!-- Progress bar -->
-      {% if next_tier_name != blank %}
-        <div style="margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.6; margin-bottom: 6px;">
-            <span>{{ total_spent | money_without_trailing_zeros }} spent</span>
-            <span>{{ next_tier_name }} at {{ next_tier_min | money_without_trailing_zeros }}</span>
+      {% if block.settings.show_progress %}
+        {% if next_tier_name != blank %}
+          <div style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: {{ block.settings.panel_label_size }}px; opacity: 0.6; margin-bottom: 6px;">
+              <span>{{ total_spent | money_without_trailing_zeros }} spent</span>
+              <span>{{ next_tier_name }} at {{ next_tier_min | money_without_trailing_zeros }}</span>
+            </div>
+            <div style="background: {{ block.settings.progress_bg }}; border-radius: {{ block.settings.progress_radius }}px; height: {{ block.settings.progress_height }}px; overflow: hidden;">
+              <div style="width: {{ progress_pct }}%; height: 100%; background: {{ block.settings.accent_color }}; border-radius: {{ block.settings.progress_radius }}px; transition: width 0.4s ease;"></div>
+            </div>
+            <div style="font-size: {{ block.settings.panel_label_size }}px; opacity: 0.6; margin-top: 4px;">
+              {{ to_next | money_without_trailing_zeros }} to {{ next_tier_name }} ({{ next_tier_pct | divided_by: 100.0 }}% back)
+            </div>
           </div>
-          <div style="background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
-            <div style="
-              width: {{ progress_pct }}%;
-              height: 100%;
-              background: {{ block.settings.accent_color }};
-              border-radius: 6px;
-              transition: width 0.4s ease;
-            "></div>
+        {% else %}
+          <div style="margin-bottom: 16px;">
+            <div style="font-size: {{ block.settings.panel_label_size }}px; opacity: 0.6; margin-bottom: 6px;">Top tier reached!</div>
+            <div style="background: {{ block.settings.progress_bg }}; border-radius: {{ block.settings.progress_radius }}px; height: {{ block.settings.progress_height }}px; overflow: hidden;">
+              <div style="width: 100%; height: 100%; background: {{ block.settings.accent_color }}; border-radius: {{ block.settings.progress_radius }}px;"></div>
+            </div>
           </div>
-          <div style="font-size: 11px; opacity: 0.6; margin-top: 4px;">
-            {{ to_next | money_without_trailing_zeros }} to {{ next_tier_name }} ({{ next_tier_pct | divided_by: 100.0 }}% back)
-          </div>
-        </div>
-      {% else %}
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 11px; opacity: 0.6; margin-bottom: 6px;">Top tier reached!</div>
-          <div style="background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
-            <div style="width: 100%; height: 100%; background: {{ block.settings.accent_color }}; border-radius: 6px;"></div>
-          </div>
-        </div>
+        {% endif %}
       {% endif %}
 
     {% else %}
-      <!-- GUEST: show program overview -->
       <div style="margin-bottom: 16px;">
-        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Loyalty Program</div>
-        <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">Earn cashback on every order</div>
+        <div style="font-size: {{ block.settings.panel_label_size }}px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">{{ block.settings.guest_label }}</div>
+        <div style="font-size: {{ block.settings.panel_heading_size | minus: 4 }}px; font-weight: 700; margin-top: 4px;">{{ block.settings.guest_heading }}</div>
       </div>
-
-      <div style="font-size: 13px; opacity: 0.8; margin-bottom: 16px;">
-        {{ block.settings.description }}
+      <div style="font-size: {{ block.settings.panel_body_size }}px; opacity: 0.8; margin-bottom: 16px;">
+        {{ block.settings.guest_description }}
       </div>
     {% endif %}
 
-    <!-- Tier breakdown (always shown) -->
-    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
-      <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 0 and customer %}{{ block.settings.tier1_color }}{% else %}rgba(255,255,255,0.15){% endif %};"></div>
-      <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 1 and customer %}{{ block.settings.tier2_color }}{% else %}rgba(255,255,255,0.15){% endif %};"></div>
-      <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 2 and customer %}{{ block.settings.tier3_color }}{% else %}rgba(255,255,255,0.15){% endif %};"></div>
-    </div>
-    <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
-      <span style="font-size: 10px; {% if current_tier_idx == 0 and customer %}color: {{ block.settings.tier1_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t1_name }} {{ t1_pct | divided_by: 100.0 }}%</span>
-      <span style="font-size: 10px; {% if current_tier_idx == 1 and customer %}color: {{ block.settings.tier2_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t2_name }} {{ t2_pct | divided_by: 100.0 }}%</span>
-      <span style="font-size: 10px; {% if current_tier_idx == 2 and customer %}color: {{ block.settings.tier3_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t3_name }} {{ t3_pct | divided_by: 100.0 }}%</span>
-    </div>
+    {% if block.settings.show_tier_breakdown %}
+      <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+        <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 0 and customer %}{{ block.settings.tier1_color }}{% else %}{{ block.settings.progress_bg }}{% endif %};"></div>
+        <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 1 and customer %}{{ block.settings.tier2_color }}{% else %}{{ block.settings.progress_bg }}{% endif %};"></div>
+        <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 2 and customer %}{{ block.settings.tier3_color }}{% else %}{{ block.settings.progress_bg }}{% endif %};"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+        <span style="font-size: {{ block.settings.panel_label_size | minus: 1 }}px; {% if current_tier_idx == 0 and customer %}color: {{ block.settings.tier1_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t1_name }} {{ t1_pct | divided_by: 100.0 }}%</span>
+        <span style="font-size: {{ block.settings.panel_label_size | minus: 1 }}px; {% if current_tier_idx == 1 and customer %}color: {{ block.settings.tier2_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t2_name }} {{ t2_pct | divided_by: 100.0 }}%</span>
+        <span style="font-size: {{ block.settings.panel_label_size | minus: 1 }}px; {% if current_tier_idx == 2 and customer %}color: {{ block.settings.tier3_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t3_name }} {{ t3_pct | divided_by: 100.0 }}%</span>
+      </div>
+    {% endif %}
 
     {% unless customer %}
       <a href="{{ routes.account_login_url }}" style="
-        display: block;
-        text-align: center;
-        background: {{ block.settings.accent_color }};
-        color: {{ block.settings.bg_color }};
-        padding: 10px 16px;
-        border-radius: 8px;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 13px;
-      ">Log in to see your tier</a>
+        display: block; text-align: center;
+        background: {{ block.settings.accent_color }}; color: {{ block.settings.panel_bg }};
+        padding: 10px 16px; border-radius: 8px;
+        text-decoration: none; font-weight: 600; font-size: {{ block.settings.panel_body_size }}px;
+      ">{{ block.settings.guest_cta_text }}</a>
     {% else %}
       {% if block.settings.link_url != blank %}
         <a href="{{ block.settings.link_url }}" style="
-          display: block;
-          text-align: center;
-          background: {{ block.settings.accent_color }};
-          color: {{ block.settings.bg_color }};
-          padding: 10px 16px;
-          border-radius: 8px;
-          text-decoration: none;
-          font-weight: 600;
-          font-size: 13px;
+          display: block; text-align: center;
+          background: {{ block.settings.accent_color }}; color: {{ block.settings.panel_bg }};
+          padding: 10px 16px; border-radius: 8px;
+          text-decoration: none; font-weight: 600; font-size: {{ block.settings.panel_body_size }}px;
         ">{{ block.settings.link_text }}</a>
       {% endif %}
     {% endunless %}
@@ -246,18 +232,163 @@
   "settings": [
     {
       "type": "header",
-      "content": "Appearance"
+      "content": "Button"
     },
     {
       "type": "color",
-      "id": "bg_color",
-      "label": "Background color",
+      "id": "btn_bg",
+      "label": "Button background",
       "default": "#111827"
     },
     {
       "type": "color",
-      "id": "text_color",
-      "label": "Text color",
+      "id": "btn_text",
+      "label": "Button text color",
+      "default": "#f9fafb"
+    },
+    {
+      "type": "color",
+      "id": "btn_border_color",
+      "label": "Button border color",
+      "default": "#111827"
+    },
+    {
+      "type": "range",
+      "id": "btn_border_width",
+      "label": "Button border width",
+      "min": 0,
+      "max": 4,
+      "step": 1,
+      "default": 0,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "btn_radius",
+      "label": "Button border radius",
+      "min": 0,
+      "max": 50,
+      "step": 2,
+      "default": 50,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "btn_padding_y",
+      "label": "Button vertical padding",
+      "min": 6,
+      "max": 20,
+      "step": 2,
+      "default": 12,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "btn_padding_x",
+      "label": "Button horizontal padding",
+      "min": 12,
+      "max": 32,
+      "step": 2,
+      "default": 20,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "btn_font_size",
+      "label": "Button font size",
+      "min": 11,
+      "max": 18,
+      "step": 1,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "select",
+      "id": "btn_font_weight",
+      "label": "Button font weight",
+      "options": [
+        { "value": "400", "label": "Normal" },
+        { "value": "500", "label": "Medium" },
+        { "value": "600", "label": "Semi-bold" },
+        { "value": "700", "label": "Bold" }
+      ],
+      "default": "600"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_icon",
+      "label": "Show icon",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "icon",
+      "label": "Button icon",
+      "default": "★"
+    },
+    {
+      "type": "text",
+      "id": "btn_logged_in_prefix",
+      "label": "Logged-in prefix",
+      "info": "Followed by tier name and %",
+      "default": "My tier:"
+    },
+    {
+      "type": "text",
+      "id": "btn_guest_text",
+      "label": "Guest button text",
+      "default": "Earn up to 10% back"
+    },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Horizontal position",
+      "options": [
+        { "value": "right", "label": "Right" },
+        { "value": "left", "label": "Left" }
+      ],
+      "default": "right"
+    },
+    {
+      "type": "range",
+      "id": "offset_x",
+      "label": "Horizontal offset",
+      "min": 8,
+      "max": 40,
+      "step": 4,
+      "default": 20,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "offset_y",
+      "label": "Vertical offset (bottom)",
+      "min": 8,
+      "max": 60,
+      "step": 4,
+      "default": 20,
+      "unit": "px"
+    },
+    {
+      "type": "text",
+      "id": "shadow",
+      "label": "Box shadow (CSS)",
+      "default": "0 4px 16px rgba(0,0,0,0.2)"
+    },
+    {
+      "type": "header",
+      "content": "Panel appearance"
+    },
+    {
+      "type": "color",
+      "id": "panel_bg",
+      "label": "Panel background",
+      "default": "#111827"
+    },
+    {
+      "type": "color",
+      "id": "panel_text",
+      "label": "Panel text color",
       "default": "#f9fafb"
     },
     {
@@ -265,6 +396,142 @@
       "id": "accent_color",
       "label": "Accent color",
       "default": "#22c55e"
+    },
+    {
+      "type": "color",
+      "id": "panel_border_color",
+      "label": "Panel border color",
+      "default": "#1f2937"
+    },
+    {
+      "type": "range",
+      "id": "panel_border_width",
+      "label": "Panel border width",
+      "min": 0,
+      "max": 4,
+      "step": 1,
+      "default": 0,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "panel_radius",
+      "label": "Panel border radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "default": 16,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "panel_padding",
+      "label": "Panel padding",
+      "min": 12,
+      "max": 36,
+      "step": 4,
+      "default": 24,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "panel_width",
+      "label": "Panel width",
+      "min": 240,
+      "max": 420,
+      "step": 20,
+      "default": 320,
+      "unit": "px"
+    },
+    {
+      "type": "select",
+      "id": "font_family",
+      "label": "Font family",
+      "options": [
+        { "value": "inherit", "label": "Theme default" },
+        { "value": "sans", "label": "Sans-serif" },
+        { "value": "serif", "label": "Serif" },
+        { "value": "mono", "label": "Monospace" }
+      ],
+      "default": "inherit"
+    },
+    {
+      "type": "range",
+      "id": "panel_heading_size",
+      "label": "Heading size",
+      "min": 16,
+      "max": 28,
+      "step": 2,
+      "default": 22,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "panel_body_size",
+      "label": "Body size",
+      "min": 11,
+      "max": 18,
+      "step": 1,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "panel_label_size",
+      "label": "Label size",
+      "min": 9,
+      "max": 14,
+      "step": 1,
+      "default": 11,
+      "unit": "px"
+    },
+    {
+      "type": "header",
+      "content": "Progress & Visibility"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_progress",
+      "label": "Show progress bar",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_balance",
+      "label": "Show balance",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_tier_breakdown",
+      "label": "Show tier breakdown",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "progress_bg",
+      "label": "Progress background",
+      "default": "#374151"
+    },
+    {
+      "type": "range",
+      "id": "progress_height",
+      "label": "Progress bar height",
+      "min": 4,
+      "max": 12,
+      "step": 2,
+      "default": 8,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "progress_radius",
+      "label": "Progress bar radius",
+      "min": 0,
+      "max": 12,
+      "step": 2,
+      "default": 6,
+      "unit": "px"
     },
     {
       "type": "color",
@@ -283,22 +550,6 @@
       "id": "tier3_color",
       "label": "Tier 3 color",
       "default": "#f59e0b"
-    },
-    {
-      "type": "select",
-      "id": "position",
-      "label": "Position",
-      "options": [
-        { "value": "right", "label": "Bottom right" },
-        { "value": "left", "label": "Bottom left" }
-      ],
-      "default": "right"
-    },
-    {
-      "type": "text",
-      "id": "icon",
-      "label": "Button icon",
-      "default": "★"
     },
     {
       "type": "header",
@@ -333,7 +584,6 @@
       "type": "number",
       "id": "tier2_pct",
       "label": "Tier 2 % (x100)",
-      "info": "700 = 7%",
       "default": 700
     },
     {
@@ -352,7 +602,6 @@
       "type": "number",
       "id": "tier3_pct",
       "label": "Tier 3 % (x100)",
-      "info": "1000 = 10%",
       "default": 1000
     },
     {
@@ -363,18 +612,36 @@
     },
     {
       "type": "header",
-      "content": "Content"
+      "content": "Content & Links"
     },
     {
       "type": "text",
-      "id": "description",
+      "id": "guest_label",
+      "label": "Guest label",
+      "default": "Loyalty Program"
+    },
+    {
+      "type": "text",
+      "id": "guest_heading",
+      "label": "Guest heading",
+      "default": "Earn cashback on every order"
+    },
+    {
+      "type": "text",
+      "id": "guest_description",
       "label": "Guest description",
       "default": "Earn cashback on every purchase. The more you spend, the higher your tier!"
     },
     {
       "type": "text",
+      "id": "guest_cta_text",
+      "label": "Guest button text",
+      "default": "Log in to see your tier"
+    },
+    {
+      "type": "text",
       "id": "link_text",
-      "label": "Link text",
+      "label": "Logged-in link text",
       "default": "View full rewards"
     },
     {

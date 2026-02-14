@@ -17,14 +17,36 @@ export default async () => {
   }
 };
 
-const TIERS = [
-  {name: 'Bronze', minSpend: 0, pct: 5},
-  {name: 'Silver', minSpend: 5000, pct: 7},
-  {name: 'Gold', minSpend: 10000, pct: 10},
-];
+function useTiers() {
+  const s = shopify.settings?.current?.value || {};
+  return [
+    {
+      name: s.tier1_name || 'Bronze',
+      minSpend: Number(s.tier1_min) || 0,
+      maxSpend: Number(s.tier2_min) || 5000,
+      pct: Number(s.tier1_pct) || 5,
+    },
+    {
+      name: s.tier2_name || 'Silver',
+      minSpend: Number(s.tier2_min) || 5000,
+      maxSpend: Number(s.tier3_min) || 10000,
+      pct: Number(s.tier2_pct) || 7,
+    },
+    {
+      name: s.tier3_name || 'Gold',
+      minSpend: Number(s.tier3_min) || 10000,
+      maxSpend: null,
+      pct: Number(s.tier3_pct) || 10,
+    },
+  ];
+}
 
 function OrderStatusBlock() {
-  const [spent, setSpent] = useState(0);
+  const tiers = useTiers();
+  const s = shopify.settings?.current?.value || {};
+  const currency = s.currency || 'EUR';
+  const [spent, setSpent] = useState(null);
+  const [orderTotal, setOrderTotal] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,10 +61,7 @@ function OrderStatusBlock() {
               query: `{
                 customer {
                   orders(first: 50, sortKey: PROCESSED_AT, reverse: true) {
-                    nodes {
-                      processedAt
-                      totalPrice { amount }
-                    }
+                    nodes { processedAt totalPrice { amount } }
                   }
                 }
               }`,
@@ -51,16 +70,19 @@ function OrderStatusBlock() {
         );
         if (resp.ok) {
           const json = await resp.json();
-          const now = new Date();
-          const cutoff = new Date(now);
-          cutoff.setFullYear(now.getFullYear() - 1);
+          const orders = json?.data?.customer?.orders?.nodes || [];
+          const cutoff = new Date();
+          cutoff.setFullYear(cutoff.getFullYear() - 1);
           let total = 0;
-          for (const o of json?.data?.customer?.orders?.nodes || []) {
+          for (const o of orders) {
             if (new Date(o.processedAt) >= cutoff) {
               total += parseFloat(o.totalPrice?.amount || '0');
             }
           }
           setSpent(Math.round(total * 100) / 100);
+          if (orders.length > 0) {
+            setOrderTotal(parseFloat(orders[0].totalPrice?.amount || '0'));
+          }
         }
       } catch (e) {
         console.warn('OrderStatusBlock fetch error:', e);
@@ -70,49 +92,61 @@ function OrderStatusBlock() {
     fetchData();
   }, []);
 
+  const spentVal = spent ?? 0;
   let tierIdx = 0;
-  for (let i = TIERS.length - 1; i >= 0; i--) {
-    if (spent >= TIERS[i].minSpend) { tierIdx = i; break; }
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (spentVal >= tiers[i].minSpend) { tierIdx = i; break; }
   }
-  const tier = TIERS[tierIdx];
-  const nextTier = tierIdx < TIERS.length - 1 ? TIERS[tierIdx + 1] : null;
+  const tier = tiers[tierIdx];
+  const nextTier = tierIdx < tiers.length - 1 ? tiers[tierIdx + 1] : null;
+  const earned = orderTotal != null ? (orderTotal * tier.pct / 100).toFixed(2) : null;
+  const progressVal = nextTier
+    ? Math.min(100, Math.round(((spentVal - tier.minSpend) / (nextTier.minSpend - tier.minSpend)) * 100))
+    : 100;
+  const fmt = (n) => shopify.i18n.formatCurrency(n, {currency});
 
   return (
     <s-section heading="Loyalty Rewards">
       <s-stack direction="block" gap="base" paddingBlockStart="base">
-        <s-banner tone="success">
-          <s-text>
-            You earned {tier.pct}% cashback on this order as a {tier.name} tier member!
-            Store credit is added to your account automatically.
-          </s-text>
-        </s-banner>
-
-        {nextTier && !loading && (
-          <s-stack direction="block" gap="small">
-            <s-text color="subdued" type="small">
-              {shopify.i18n.formatCurrency(Math.max(0, nextTier.minSpend - spent), {currency: 'EUR'})} more
-              to reach {nextTier.name} ({nextTier.pct}% cashback)
+        {earned != null && parseFloat(earned) > 0 && (
+          <s-banner tone="success">
+            <s-text>
+              You earned {fmt(parseFloat(earned))} store credit on this order ({tier.pct}% {tier.name} cashback)
             </s-text>
-            <s-progress
-              value={Math.min(100, Math.round(((spent - tier.minSpend) / (nextTier.minSpend - tier.minSpend)) * 100))}
-              max={100}
-              accessibilityLabel="Progress to next tier"
-            />
-          </s-stack>
+          </s-banner>
         )}
 
-        <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
-          {TIERS.map((t, i) => (
-            <s-stack key={t.name} direction="block" gap="small" alignItems="center">
-              <s-text type={i === tierIdx ? 'strong' : 'generic'}>
-                {t.name}
-              </s-text>
-              <s-text tone={i === tierIdx ? 'success' : 'auto'} type="strong">
-                {t.pct}%
-              </s-text>
-            </s-stack>
-          ))}
+        <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+          <s-stack direction="block" gap="small">
+            <s-text color="subdued" type="small">Your tier</s-text>
+            <s-text type="strong">{loading ? '...' : tier.name}</s-text>
+            <s-badge tone="auto">{tier.pct}% cashback</s-badge>
+          </s-stack>
+
+          <s-stack direction="block" gap="small">
+            <s-text color="subdued" type="small">Spent (12 months)</s-text>
+            <s-text type="strong">{loading ? '...' : fmt(spentVal)}</s-text>
+          </s-stack>
         </s-grid>
+
+        {nextTier && (
+          <>
+            <s-divider />
+            <s-stack direction="block" gap="small">
+              <s-stack direction="inline" justifyContent="space-between">
+                <s-text color="subdued" type="small">Progress to {nextTier.name}</s-text>
+                <s-text color="subdued" type="small">{nextTier.name} at {fmt(nextTier.minSpend)}</s-text>
+              </s-stack>
+              <s-progress value={progressVal} max={100} accessibilityLabel="Progress to next tier" />
+            </s-stack>
+          </>
+        )}
+
+        <s-stack direction="inline" gap="base">
+          <s-button tone="neutral" variant="secondary" href="extension:loyalty-rewards-page/">
+            View rewards program
+          </s-button>
+        </s-stack>
       </s-stack>
     </s-section>
   );

@@ -1,29 +1,41 @@
 {% comment %}
   Loyalty Credits Banner Block
-  Lightweight banner for any page showing earn rates.
-  Tier percentages are configurable by the merchant in the theme editor.
+  Fully configurable lightweight banner. Colors, fonts, spacing, content — all adjustable.
 {% endcomment %}
+
+{% case block.settings.font_family %}
+  {% when 'sans' %}{% assign ff = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" %}
+  {% when 'serif' %}{% assign ff = "Georgia, 'Times New Roman', serif" %}
+  {% when 'mono' %}{% assign ff = "'SF Mono', Menlo, monospace" %}
+  {% when 'inherit' %}{% assign ff = "inherit" %}
+{% endcase %}
 
 <div class="loyalty-banner" style="
   background: {{ block.settings.bg_color }};
   color: {{ block.settings.text_color }};
+  font-family: {{ ff }};
   border-radius: {{ block.settings.border_radius }}px;
-  padding: 12px 20px;
+  padding: {{ block.settings.padding_y }}px {{ block.settings.padding_x }}px;
+  margin-top: {{ block.settings.margin_top }}px;
+  margin-bottom: {{ block.settings.margin_bottom }}px;
+  border: {{ block.settings.border_width }}px solid {{ block.settings.border_color }};
   display: flex;
   align-items: center;
   gap: 10px;
+  text-align: {{ block.settings.text_align }};
+  {% if block.settings.max_width > 0 %}max-width: {{ block.settings.max_width }}px; margin-left: auto; margin-right: auto;{% endif %}
 ">
   {% if block.settings.show_icon %}
-    <span style="font-size: 20px;">{{ block.settings.icon }}</span>
+    <span style="font-size: {{ block.settings.icon_size }}px; flex-shrink: 0;">{{ block.settings.icon }}</span>
   {% endif %}
 
   <div style="flex: 1;">
-    <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 500;">
+    <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: {{ block.settings.font_weight }};">
       {{ block.settings.banner_text }}
     </p>
 
     {% if block.settings.show_tiers %}
-      <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.8;">
+      <p style="margin: 4px 0 0; font-size: {{ block.settings.subtitle_size }}px; opacity: {{ block.settings.subtitle_opacity }};">
         {% if block.settings.tier1_name != blank %}
           {{ block.settings.tier1_name }}: {{ block.settings.tier1_pct }}%
         {% endif %}
@@ -37,12 +49,22 @@
     {% endif %}
 
     {% if block.settings.show_balance and customer %}
-      {% assign loyalty_balance = customer.metafields.app.loyalty_total_earned.value | default: 0 %}
-      <p style="margin: 2px 0 0; font-size: 12px; opacity: 0.8;">
+      {% assign loyalty_balance = customer.metafields.loyalty_credits.balance.value | default: 0 %}
+      <p style="margin: 4px 0 0; font-size: {{ block.settings.subtitle_size }}px; opacity: {{ block.settings.subtitle_opacity }};">
         Your balance: {{ loyalty_balance | money_without_trailing_zeros }}
       </p>
     {% endif %}
   </div>
+
+  {% if block.settings.show_link and block.settings.link_text != blank %}
+    <a href="{{ block.settings.link_url | default: '#' }}" style="
+      color: {{ block.settings.accent_color }};
+      font-size: {{ block.settings.subtitle_size }}px;
+      text-decoration: underline;
+      flex-shrink: 0;
+      font-weight: 600;
+    ">{{ block.settings.link_text }}</a>
+  {% endif %}
 </div>
 
 {% schema %}
@@ -50,6 +72,10 @@
   "name": "Loyalty Banner",
   "target": "section",
   "settings": [
+    {
+      "type": "header",
+      "content": "Colors"
+    },
     {
       "type": "color",
       "id": "bg_color",
@@ -63,6 +89,130 @@
       "default": "#ffffff"
     },
     {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent / link color",
+      "default": "#22c55e"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border color",
+      "default": "#333333"
+    },
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "select",
+      "id": "font_family",
+      "label": "Font family",
+      "options": [
+        { "value": "inherit", "label": "Theme default" },
+        { "value": "sans", "label": "Sans-serif" },
+        { "value": "serif", "label": "Serif" },
+        { "value": "mono", "label": "Monospace" }
+      ],
+      "default": "inherit"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Title font size",
+      "min": 12,
+      "max": 22,
+      "step": 1,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "select",
+      "id": "font_weight",
+      "label": "Title font weight",
+      "options": [
+        { "value": "400", "label": "Normal" },
+        { "value": "500", "label": "Medium" },
+        { "value": "600", "label": "Semi-bold" },
+        { "value": "700", "label": "Bold" }
+      ],
+      "default": "500"
+    },
+    {
+      "type": "range",
+      "id": "subtitle_size",
+      "label": "Subtitle font size",
+      "min": 10,
+      "max": 16,
+      "step": 1,
+      "default": 12,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "subtitle_opacity",
+      "label": "Subtitle opacity",
+      "min": 0.3,
+      "max": 1.0,
+      "step": 0.1,
+      "default": 0.8
+    },
+    {
+      "type": "select",
+      "id": "text_align",
+      "label": "Text alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "left"
+    },
+    {
+      "type": "header",
+      "content": "Spacing & Border"
+    },
+    {
+      "type": "range",
+      "id": "padding_y",
+      "label": "Vertical padding",
+      "min": 4,
+      "max": 32,
+      "step": 2,
+      "default": 12,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "padding_x",
+      "label": "Horizontal padding",
+      "min": 4,
+      "max": 32,
+      "step": 2,
+      "default": 20,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "margin_top",
+      "label": "Margin top",
+      "min": 0,
+      "max": 40,
+      "step": 4,
+      "default": 0,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "margin_bottom",
+      "label": "Margin bottom",
+      "min": 0,
+      "max": 40,
+      "step": 4,
+      "default": 0,
+      "unit": "px"
+    },
+    {
       "type": "range",
       "id": "border_radius",
       "label": "Border radius",
@@ -74,19 +224,23 @@
     },
     {
       "type": "range",
-      "id": "font_size",
-      "label": "Font size",
-      "min": 12,
-      "max": 20,
+      "id": "border_width",
+      "label": "Border width",
+      "min": 0,
+      "max": 4,
       "step": 1,
-      "default": 14,
+      "default": 0,
       "unit": "px"
     },
     {
-      "type": "text",
-      "id": "banner_text",
-      "label": "Banner text",
-      "default": "Earn up to 10% back in store credit on every purchase!"
+      "type": "number",
+      "id": "max_width",
+      "label": "Max width (0 = full)",
+      "default": 0
+    },
+    {
+      "type": "header",
+      "content": "Icon"
     },
     {
       "type": "checkbox",
@@ -97,18 +251,61 @@
     {
       "type": "text",
       "id": "icon",
-      "label": "Icon",
+      "label": "Icon character",
       "default": "★"
     },
     {
+      "type": "range",
+      "id": "icon_size",
+      "label": "Icon size",
+      "min": 14,
+      "max": 32,
+      "step": 2,
+      "default": 20,
+      "unit": "px"
+    },
+    {
       "type": "header",
-      "content": "Tiers (match your app settings)"
+      "content": "Content"
+    },
+    {
+      "type": "text",
+      "id": "banner_text",
+      "label": "Banner text",
+      "default": "Earn up to 10% back in store credit on every purchase!"
     },
     {
       "type": "checkbox",
       "id": "show_tiers",
       "label": "Show tier percentages",
       "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_balance",
+      "label": "Show balance (logged-in only)",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_link",
+      "label": "Show link",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "link_text",
+      "label": "Link text",
+      "default": "View rewards"
+    },
+    {
+      "type": "url",
+      "id": "link_url",
+      "label": "Link URL"
+    },
+    {
+      "type": "header",
+      "content": "Tier settings (match your app)"
     },
     {
       "type": "text",
@@ -145,16 +342,6 @@
       "id": "tier3_pct",
       "label": "Tier 3 %",
       "default": "10"
-    },
-    {
-      "type": "header",
-      "content": "Balance"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_balance",
-      "label": "Show balance for logged-in customers",
-      "default": true
     }
   ]
 }

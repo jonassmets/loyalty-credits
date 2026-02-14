@@ -17,6 +17,81 @@ module = "./src/ProfileBlock.jsx"
 target = "customer-account.order-status.block.render"
 module = "./src/OrderStatusBlock.jsx"
 
+[extensions.settings]
+
+  [[extensions.settings.fields]]
+  key = "heading"
+  type = "single_line_text_field"
+  name = "Section heading"
+  description = "Title shown above the loyalty block"
+
+  [[extensions.settings.fields]]
+  key = "tier1_name"
+  type = "single_line_text_field"
+  name = "Tier 1 name"
+
+  [[extensions.settings.fields]]
+  key = "tier1_pct"
+  type = "number_integer"
+  name = "Tier 1 cashback %"
+
+  [[extensions.settings.fields]]
+  key = "tier1_min"
+  type = "number_integer"
+  name = "Tier 1 min spend"
+  description = "Minimum 12-month spend for this tier (whole currency units)"
+
+  [[extensions.settings.fields]]
+  key = "tier2_name"
+  type = "single_line_text_field"
+  name = "Tier 2 name"
+
+  [[extensions.settings.fields]]
+  key = "tier2_pct"
+  type = "number_integer"
+  name = "Tier 2 cashback %"
+
+  [[extensions.settings.fields]]
+  key = "tier2_min"
+  type = "number_integer"
+  name = "Tier 2 min spend"
+
+  [[extensions.settings.fields]]
+  key = "tier3_name"
+  type = "single_line_text_field"
+  name = "Tier 3 name"
+
+  [[extensions.settings.fields]]
+  key = "tier3_pct"
+  type = "number_integer"
+  name = "Tier 3 cashback %"
+
+  [[extensions.settings.fields]]
+  key = "tier3_min"
+  type = "number_integer"
+  name = "Tier 3 min spend"
+
+  [[extensions.settings.fields]]
+  key = "currency"
+  type = "single_line_text_field"
+  name = "Currency code"
+  description = "ISO currency code (e.g. EUR, USD, GBP)"
+
+  [[extensions.settings.fields]]
+  key = "show_balance"
+  type = "boolean"
+  name = "Show store credit balance"
+
+  [[extensions.settings.fields]]
+  key = "show_progress"
+  type = "boolean"
+  name = "Show progress bar"
+
+  [[extensions.settings.fields]]
+  key = "show_all_tiers"
+  type = "boolean"
+  name = "Show all tiers breakdown"
+
 [[extensions]]
 type = "ui_extension"
 name = "Loyalty Credits - Rewards Page"
@@ -29,3 +104,65 @@ api_access = true
 [[extensions.targeting]]
 target = "customer-account.page.render"
 module = "./src/RewardsPage.jsx"
+
+[extensions.settings]
+
+  [[extensions.settings.fields]]
+  key = "tier1_name"
+  type = "single_line_text_field"
+  name = "Tier 1 name"
+
+  [[extensions.settings.fields]]
+  key = "tier1_pct"
+  type = "number_integer"
+  name = "Tier 1 cashback %"
+
+  [[extensions.settings.fields]]
+  key = "tier1_min"
+  type = "number_integer"
+  name = "Tier 1 min spend"
+
+  [[extensions.settings.fields]]
+  key = "tier2_name"
+  type = "single_line_text_field"
+  name = "Tier 2 name"
+
+  [[extensions.settings.fields]]
+  key = "tier2_pct"
+  type = "number_integer"
+  name = "Tier 2 cashback %"
+
+  [[extensions.settings.fields]]
+  key = "tier2_min"
+  type = "number_integer"
+  name = "Tier 2 min spend"
+
+  [[extensions.settings.fields]]
+  key = "tier3_name"
+  type = "single_line_text_field"
+  name = "Tier 3 name"
+
+  [[extensions.settings.fields]]
+  key = "tier3_pct"
+  type = "number_integer"
+  name = "Tier 3 cashback %"
+
+  [[extensions.settings.fields]]
+  key = "tier3_min"
+  type = "number_integer"
+  name = "Tier 3 min spend"
+
+  [[extensions.settings.fields]]
+  key = "currency"
+  type = "single_line_text_field"
+  name = "Currency code"
+
+  [[extensions.settings.fields]]
+  key = "show_faq"
+  type = "boolean"
+  name = "Show FAQ section"
+
+  [[extensions.settings.fields]]
+  key = "show_how_it_works"
+  type = "boolean"
+  name = "Show 'How it works' section"

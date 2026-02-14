@@ -1,14 +1,12 @@
 {% comment %}
   Loyalty Credits - Product Cashback Banner
-  Dynamic: shows exact % for logged-in customers based on their total_spent metafield.
-  Falls back to showing the range (min–max) for guests.
+  Fully configurable in the theme editor: colors, fonts, spacing, visibility.
 {% endcomment %}
 
 {% assign product_price = product.selected_or_first_available_variant.price | times: 1.0 %}
 {% assign min_pct = block.settings.tier1_pct | times: 1.0 %}
 {% assign max_pct = block.settings.tier3_pct | times: 1.0 %}
 
-{% comment %} Determine customer tier from total_spent metafield {% endcomment %}
 {% assign customer_pct = 0 %}
 {% assign customer_tier_name = "" %}
 {% assign is_logged_in = false %}
@@ -32,40 +30,54 @@
   {% endif %}
 {% endif %}
 
+{% comment %} Font family mapping {% endcomment %}
+{% case block.settings.font_family %}
+  {% when 'sans' %}{% assign ff = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" %}
+  {% when 'serif' %}{% assign ff = "Georgia, 'Times New Roman', serif" %}
+  {% when 'mono' %}{% assign ff = "'SF Mono', Menlo, monospace" %}
+  {% when 'inherit' %}{% assign ff = "inherit" %}
+{% endcase %}
+
 {% if product_price > 0 %}
   {% if is_logged_in and customer_pct > 0 %}
     {% assign exact_credit = product_price | times: customer_pct | divided_by: 10000.0 %}
     <div class="loyalty-cashback" style="
       background: {{ block.settings.bg_color }};
       color: {{ block.settings.text_color }};
+      font-family: {{ ff }};
       border-radius: {{ block.settings.border_radius }}px;
-      padding: {{ block.settings.padding }}px;
-      margin: 8px 0;
+      padding: {{ block.settings.padding_y }}px {{ block.settings.padding_x }}px;
+      margin-top: {{ block.settings.margin_top }}px;
+      margin-bottom: {{ block.settings.margin_bottom }}px;
+      border: {{ block.settings.border_width }}px solid {{ block.settings.border_color }};
       display: flex;
       align-items: center;
       gap: 10px;
+      text-align: {{ block.settings.text_align }};
     ">
       {% if block.settings.show_icon %}
         <span style="
           flex-shrink: 0;
-          width: 36px;
-          height: 36px;
+          width: {{ block.settings.icon_size }}px;
+          height: {{ block.settings.icon_size }}px;
           display: flex;
           align-items: center;
           justify-content: center;
           background: {{ block.settings.accent_color }};
           color: {{ block.settings.bg_color }};
           border-radius: 50%;
-          font-size: 16px;
+          font-size: {{ block.settings.icon_size | divided_by: 2 }}px;
         ">{{ block.settings.icon }}</span>
       {% endif %}
       <div style="flex: 1;">
-        <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
-          Earn {{ exact_credit | money_without_trailing_zeros }} store credit
+        <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: {{ block.settings.font_weight }};">
+          {{ block.settings.earn_prefix }} {{ exact_credit | money_without_trailing_zeros }} {{ block.settings.earn_suffix }}
         </p>
-        <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
-          {{ customer_pct | divided_by: 100.0 }}% cashback as {{ customer_tier_name }} member
-        </p>
+        {% if block.settings.show_subtitle %}
+          <p style="margin: 2px 0 0; font-size: {{ block.settings.subtitle_size }}px; opacity: {{ block.settings.subtitle_opacity }};">
+            {{ customer_pct | divided_by: 100.0 }}% cashback as {{ customer_tier_name }} member
+          </p>
+        {% endif %}
       </div>
     </div>
   {% else %}
@@ -74,51 +86,54 @@
     <div class="loyalty-cashback" style="
       background: {{ block.settings.bg_color }};
       color: {{ block.settings.text_color }};
+      font-family: {{ ff }};
       border-radius: {{ block.settings.border_radius }}px;
-      padding: {{ block.settings.padding }}px;
-      margin: 8px 0;
+      padding: {{ block.settings.padding_y }}px {{ block.settings.padding_x }}px;
+      margin-top: {{ block.settings.margin_top }}px;
+      margin-bottom: {{ block.settings.margin_bottom }}px;
+      border: {{ block.settings.border_width }}px solid {{ block.settings.border_color }};
       display: flex;
       align-items: center;
       gap: 10px;
+      text-align: {{ block.settings.text_align }};
     ">
       {% if block.settings.show_icon %}
         <span style="
           flex-shrink: 0;
-          width: 36px;
-          height: 36px;
+          width: {{ block.settings.icon_size }}px;
+          height: {{ block.settings.icon_size }}px;
           display: flex;
           align-items: center;
           justify-content: center;
           background: {{ block.settings.accent_color }};
           color: {{ block.settings.bg_color }};
           border-radius: 50%;
-          font-size: 16px;
+          font-size: {{ block.settings.icon_size | divided_by: 2 }}px;
         ">{{ block.settings.icon }}</span>
       {% endif %}
       <div style="flex: 1;">
         {% if min_pct == max_pct %}
-          <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
-            Earn {{ min_credit | money_without_trailing_zeros }} store credit
-          </p>
-          <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
-            {{ min_pct | divided_by: 100.0 }}% cashback on this purchase
+          <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: {{ block.settings.font_weight }};">
+            {{ block.settings.earn_prefix }} {{ min_credit | money_without_trailing_zeros }} {{ block.settings.earn_suffix }}
           </p>
         {% else %}
-          <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
-            Earn {{ min_credit | money_without_trailing_zeros }} – {{ max_credit | money_without_trailing_zeros }} store credit
+          <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: {{ block.settings.font_weight }};">
+            {{ block.settings.earn_prefix }} {{ min_credit | money_without_trailing_zeros }} – {{ max_credit | money_without_trailing_zeros }} {{ block.settings.earn_suffix }}
           </p>
-          <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
-            {{ block.settings.subtext }}
+        {% endif %}
+        {% if block.settings.show_subtitle %}
+          <p style="margin: 2px 0 0; font-size: {{ block.settings.subtitle_size }}px; opacity: {{ block.settings.subtitle_opacity }};">
+            {{ block.settings.guest_subtitle }}
           </p>
         {% endif %}
       </div>
       {% if block.settings.show_login_link %}
         <a href="{{ routes.account_login_url }}" style="
           color: {{ block.settings.accent_color }};
-          font-size: 12px;
+          font-size: {{ block.settings.subtitle_size }}px;
           text-decoration: underline;
           flex-shrink: 0;
-        ">Log in for your rate</a>
+        ">{{ block.settings.login_text }}</a>
       {% endif %}
     </div>
   {% endif %}
@@ -129,6 +144,232 @@
   "name": "Product Cashback",
   "target": "section",
   "settings": [
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background color",
+      "default": "#f0fdf4"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#166534"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent / icon color",
+      "default": "#22c55e"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border color",
+      "default": "#bbf7d0"
+    },
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "select",
+      "id": "font_family",
+      "label": "Font family",
+      "options": [
+        { "value": "inherit", "label": "Theme default" },
+        { "value": "sans", "label": "Sans-serif" },
+        { "value": "serif", "label": "Serif" },
+        { "value": "mono", "label": "Monospace" }
+      ],
+      "default": "inherit"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Title font size",
+      "min": 12,
+      "max": 22,
+      "step": 1,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "select",
+      "id": "font_weight",
+      "label": "Title font weight",
+      "options": [
+        { "value": "400", "label": "Normal" },
+        { "value": "500", "label": "Medium" },
+        { "value": "600", "label": "Semi-bold" },
+        { "value": "700", "label": "Bold" }
+      ],
+      "default": "600"
+    },
+    {
+      "type": "range",
+      "id": "subtitle_size",
+      "label": "Subtitle font size",
+      "min": 10,
+      "max": 16,
+      "step": 1,
+      "default": 12,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "subtitle_opacity",
+      "label": "Subtitle opacity",
+      "min": 0.3,
+      "max": 1.0,
+      "step": 0.1,
+      "default": 0.8
+    },
+    {
+      "type": "select",
+      "id": "text_align",
+      "label": "Text alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "left"
+    },
+    {
+      "type": "header",
+      "content": "Spacing & Border"
+    },
+    {
+      "type": "range",
+      "id": "padding_y",
+      "label": "Vertical padding",
+      "min": 4,
+      "max": 32,
+      "step": 2,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "padding_x",
+      "label": "Horizontal padding",
+      "min": 4,
+      "max": 32,
+      "step": 2,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "margin_top",
+      "label": "Margin top",
+      "min": 0,
+      "max": 40,
+      "step": 4,
+      "default": 8,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "margin_bottom",
+      "label": "Margin bottom",
+      "min": 0,
+      "max": 40,
+      "step": 4,
+      "default": 8,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "default": 8,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "border_width",
+      "label": "Border width",
+      "min": 0,
+      "max": 4,
+      "step": 1,
+      "default": 0,
+      "unit": "px"
+    },
+    {
+      "type": "header",
+      "content": "Icon"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_icon",
+      "label": "Show icon",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "icon",
+      "label": "Icon character",
+      "default": "★"
+    },
+    {
+      "type": "range",
+      "id": "icon_size",
+      "label": "Icon size",
+      "min": 24,
+      "max": 48,
+      "step": 4,
+      "default": 36,
+      "unit": "px"
+    },
+    {
+      "type": "header",
+      "content": "Text labels"
+    },
+    {
+      "type": "text",
+      "id": "earn_prefix",
+      "label": "Earn text prefix",
+      "default": "Earn"
+    },
+    {
+      "type": "text",
+      "id": "earn_suffix",
+      "label": "Earn text suffix",
+      "default": "store credit"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_subtitle",
+      "label": "Show subtitle",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "guest_subtitle",
+      "label": "Guest subtitle",
+      "default": "Based on your loyalty tier. Spend more to earn more!"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_login_link",
+      "label": "Show login link (guests)",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "login_text",
+      "label": "Login link text",
+      "default": "Log in for your rate"
+    },
     {
       "type": "header",
       "content": "Tier settings (match your app)"
@@ -142,7 +383,7 @@
     {
       "type": "number",
       "id": "tier1_pct",
-      "label": "Tier 1 percentage (x100)",
+      "label": "Tier 1 % (x100)",
       "info": "500 = 5%",
       "default": 500
     },
@@ -150,7 +391,6 @@
       "type": "number",
       "id": "tier1_min",
       "label": "Tier 1 min spend (cents)",
-      "info": "0 for the base tier",
       "default": 0
     },
     {
@@ -162,7 +402,7 @@
     {
       "type": "number",
       "id": "tier2_pct",
-      "label": "Tier 2 percentage (x100)",
+      "label": "Tier 2 % (x100)",
       "info": "700 = 7%",
       "default": 700
     },
@@ -181,7 +421,7 @@
     {
       "type": "number",
       "id": "tier3_pct",
-      "label": "Tier 3 percentage (x100)",
+      "label": "Tier 3 % (x100)",
       "info": "1000 = 10%",
       "default": 1000
     },
@@ -190,82 +430,6 @@
       "id": "tier3_min",
       "label": "Tier 3 min spend (cents)",
       "default": 1000000
-    },
-    {
-      "type": "text",
-      "id": "subtext",
-      "label": "Guest subtitle",
-      "default": "Based on your loyalty tier. Spend more to earn more!"
-    },
-    {
-      "type": "header",
-      "content": "Appearance"
-    },
-    {
-      "type": "color",
-      "id": "bg_color",
-      "label": "Background color",
-      "default": "#f0fdf4"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#166534"
-    },
-    {
-      "type": "color",
-      "id": "accent_color",
-      "label": "Accent color",
-      "default": "#22c55e"
-    },
-    {
-      "type": "range",
-      "id": "border_radius",
-      "label": "Border radius",
-      "min": 0,
-      "max": 20,
-      "step": 2,
-      "default": 8,
-      "unit": "px"
-    },
-    {
-      "type": "range",
-      "id": "padding",
-      "label": "Padding",
-      "min": 8,
-      "max": 24,
-      "step": 2,
-      "default": 14,
-      "unit": "px"
-    },
-    {
-      "type": "range",
-      "id": "font_size",
-      "label": "Font size",
-      "min": 12,
-      "max": 18,
-      "step": 1,
-      "default": 14,
-      "unit": "px"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_icon",
-      "label": "Show icon",
-      "default": true
-    },
-    {
-      "type": "text",
-      "id": "icon",
-      "label": "Icon emoji",
-      "default": "★"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_login_link",
-      "label": "Show 'Log in' link for guests",
-      "default": true
     }
   ]
 }
