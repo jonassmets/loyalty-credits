@@ -3,7 +3,16 @@ import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
 
 export default async () => {
-  render(<OrderStatusBlock />, document.body);
+  try {
+    render(<OrderStatusBlock />, document.body);
+  } catch (e) {
+    render(
+      <s-banner tone="critical">
+        <s-text>Extension error: {String(e)}</s-text>
+      </s-banner>,
+      document.body,
+    );
+  }
 };
 
 function OrderStatusBlock() {
@@ -12,8 +21,8 @@ function OrderStatusBlock() {
       <s-stack direction="block" gap="base" paddingBlockStart="base">
         <s-banner tone="success">
           <s-text>
-            You earned store credit on this order! Your cashback percentage is
-            based on your spending in the last 12 months.
+            You earned store credit on this order! Your cashback is based on
+            your spending tier in the last 12 months.
           </s-text>
         </s-banner>
         <s-stack direction="inline" gap="base">
@@ -30,9 +39,6 @@ function OrderStatusBlock() {
             <s-text type="strong">10% back</s-text>
           </s-stack>
         </s-stack>
-        <s-text color="subdued">
-          Store credit is applied automatically at your next checkout.
-        </s-text>
       </s-stack>
     </s-section>
   );

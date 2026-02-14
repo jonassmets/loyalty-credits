@@ -169,37 +169,57 @@ export async function addStoreCredit(
     creditInput.expiresAt = expiresAt;
   }
 
-  const response = await admin.graphql(
-    `#graphql
-    mutation CreditStoreCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
-      storeCreditAccountCredit(id: $id, creditInput: $creditInput) {
-        storeCreditAccountTransaction {
-          amount { amount currencyCode }
-          balanceAfterTransaction { amount currencyCode }
+  try {
+    const response = await admin.graphql(
+      `#graphql
+      mutation CreditStoreCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
+        storeCreditAccountCredit(id: $id, creditInput: $creditInput) {
+          storeCreditAccountTransaction {
+            amount { amount currencyCode }
+            balanceAfterTransaction { amount currencyCode }
+          }
+          userErrors { field message }
         }
-        userErrors { field message }
-      }
-    }`,
-    {
-      variables: {
-        id: customerId,
-        creditInput,
+      }`,
+      {
+        variables: {
+          id: customerId,
+          creditInput,
+        },
       },
-    },
-  );
+    );
 
-  const data = await response.json();
-  const result = data.data?.storeCreditAccountCredit;
-  const errors = result?.userErrors;
+    const data = await response.json();
 
-  if (errors?.length) {
-    return { success: false, error: errors.map((e: any) => e.message).join(", ") };
+    // Check for top-level GraphQL errors (e.g., access denied)
+    if (data.errors?.length) {
+      const errMsg = data.errors.map((e: any) => e.message).join(", ");
+      console.error("[store-credit] GraphQL errors:", errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    const result = data.data?.storeCreditAccountCredit;
+    const userErrors = result?.userErrors;
+
+    if (userErrors?.length) {
+      const errMsg = userErrors.map((e: any) => e.message).join(", ");
+      console.error("[store-credit] User errors:", errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    if (!result?.storeCreditAccountTransaction) {
+      console.error("[store-credit] No transaction in response:", JSON.stringify(data));
+      return { success: false, error: "No transaction returned — check app permissions" };
+    }
+
+    return {
+      success: true,
+      balance: result.storeCreditAccountTransaction.balanceAfterTransaction?.amount,
+    };
+  } catch (e: any) {
+    console.error("[store-credit] Exception:", e);
+    return { success: false, error: e?.message || "Store credit API error" };
   }
-
-  return {
-    success: true,
-    balance: result?.storeCreditAccountTransaction?.balanceAfterTransaction?.amount,
-  };
 }
 
 // ── Customer Loyalty Data ──────────────────────────────────────────

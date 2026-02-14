@@ -3,40 +3,45 @@ import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
 
 export default async () => {
-  render(<ProfileBlock />, document.body);
+  try {
+    render(<ProfileBlock />, document.body);
+  } catch (e) {
+    render(
+      <s-banner tone="critical">
+        <s-text>Extension error: {String(e)}</s-text>
+      </s-banner>,
+      document.body,
+    );
+  }
 };
 
 function ProfileBlock() {
-  const i18n = shopify.i18n;
-
   const tiers = [
-    {name: 'Bronze', minSpend: 0, maxLabel: '5,000', percentage: 5},
-    {name: 'Silver', minSpend: 5000, maxLabel: '10,000', percentage: 7},
-    {name: 'Gold', minSpend: 10000, maxLabel: null, percentage: 10},
+    {name: 'Bronze', range: '€0 – €5,000', pct: '5%'},
+    {name: 'Silver', range: '€5,000 – €10,000', pct: '7%'},
+    {name: 'Gold', range: '€10,000+', pct: '10%'},
   ];
 
   return (
     <s-section heading="Loyalty Rewards">
       <s-stack direction="block" gap="base" paddingBlockStart="base">
+        <s-text>
+          Earn store credit on every purchase. Your cashback tier is based
+          on spending in the last 12 months.
+        </s-text>
+
         <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="large">
           {tiers.map((t) => (
             <s-stack key={t.name} direction="block" gap="small">
               <s-text type="strong">{t.name}</s-text>
-              <s-text color="subdued">
-                {t.maxLabel
-                  ? `${i18n.formatCurrency(t.minSpend, {currency: 'EUR'})} – ${i18n.formatCurrency(parseInt(t.maxLabel.replace(/,/g, '')), {currency: 'EUR'})}`
-                  : `${i18n.formatCurrency(t.minSpend, {currency: 'EUR'})}+`}
-              </s-text>
-              <s-text tone="success" type="strong">
-                {t.percentage}% back
-              </s-text>
+              <s-text color="subdued">{t.range}</s-text>
+              <s-text tone="success" type="strong">{t.pct} back</s-text>
             </s-stack>
           ))}
         </s-grid>
 
         <s-text color="subdued">
-          Earn store credit on every purchase based on your 12-month spending.
-          Credit is applied automatically at checkout.
+          Credit is applied automatically at checkout — no code needed.
         </s-text>
 
         <s-stack direction="block" max-inline-size="160">
