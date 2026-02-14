@@ -4,7 +4,7 @@
  */
 
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
-import { DEFAULT_SETTINGS, getTierForSpend, calculateCredit } from "./loyalty.shared";
+import { DEFAULT_SETTINGS, getTierForSpend, calculateCredit, getExpiryDate } from "./loyalty.shared";
 import type { LoyaltySettings, LoyaltyTier } from "./loyalty.shared";
 
 export { DEFAULT_SETTINGS, getTierForSpend, calculateCredit };
@@ -156,7 +156,19 @@ export async function addStoreCredit(
   customerId: string,
   amount: number,
   currencyCode: string = "EUR",
+  expiresAt?: string | null,
 ): Promise<{ success: boolean; balance?: string; error?: string }> {
+  const creditInput: any = {
+    creditAmount: {
+      amount: amount.toFixed(2),
+      currencyCode,
+    },
+  };
+
+  if (expiresAt) {
+    creditInput.expiresAt = expiresAt;
+  }
+
   const response = await admin.graphql(
     `#graphql
     mutation CreditStoreCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
@@ -171,12 +183,7 @@ export async function addStoreCredit(
     {
       variables: {
         id: customerId,
-        creditInput: {
-          creditAmount: {
-            amount: amount.toFixed(2),
-            currencyCode,
-          },
-        },
+        creditInput,
       },
     },
   );
@@ -208,7 +215,7 @@ export async function getCustomerLoyaltyData(
   admin: AdminApiContext["admin"],
   customerId: string,
 ): Promise<CustomerLoyaltyData> {
-  // Get metafield data + store credit in parallel with rolling spend
+  // Get metafield data + rolling spend in parallel
   const [metafieldResponse, rollingSpend] = await Promise.all([
     admin.graphql(
       `#graphql
@@ -220,12 +227,6 @@ export async function getCustomerLoyaltyData(
           totalEarned: metafield(namespace: "$app", key: "loyalty_total_earned") {
             value
           }
-          storeCreditAccounts(first: 1) {
-            nodes {
-              id
-              balance { amount currencyCode }
-            }
-          }
         }
       }`,
       { variables: { customerId } },
@@ -235,13 +236,35 @@ export async function getCustomerLoyaltyData(
 
   const data = await metafieldResponse.json();
   const customer = data.data?.customer;
-  const account = customer?.storeCreditAccounts?.nodes?.[0];
+
+  // Try to get store credit balance separately (may fail without scope)
+  let storeCreditBalance: string | null = null;
+  try {
+    const scResponse = await admin.graphql(
+      `#graphql
+      query GetCustomerStoreCredit($customerId: ID!) {
+        customer(id: $customerId) {
+          storeCreditAccounts(first: 1) {
+            nodes {
+              balance { amount currencyCode }
+            }
+          }
+        }
+      }`,
+      { variables: { customerId } },
+    );
+    const scData = await scResponse.json();
+    storeCreditBalance =
+      scData.data?.customer?.storeCreditAccounts?.nodes?.[0]?.balance?.amount ?? null;
+  } catch {
+    // Store credit scope not available yet
+  }
 
   return {
     totalSpent: parseFloat(customer?.totalSpent?.value || "0"),
     totalEarned: parseFloat(customer?.totalEarned?.value || "0"),
-    periodSpent: rollingSpend.totalSpend, // Use real order data, not metafield
-    storeCreditBalance: account?.balance?.amount ?? null,
+    periodSpent: rollingSpend.totalSpend, // Use real order data
+    storeCreditBalance,
   };
 }
 
@@ -332,12 +355,17 @@ export async function processOrder(
 
   if (creditAmount <= 0) return null;
 
+  // Calculate expiry date
+  const expiryDate = getExpiryDate(settings.creditExpiry || "1_year");
+  const expiresAt = expiryDate ? expiryDate.toISOString() : null;
+
   // Award store credit
   const result = await addStoreCredit(
     admin,
     customerId,
     creditAmount,
     settings.currencyCode,
+    expiresAt,
   );
 
   if (!result.success) {

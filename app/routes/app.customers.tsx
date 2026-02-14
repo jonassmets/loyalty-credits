@@ -45,7 +45,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch {
     settings = {
       tiers: [], currencyCode: "EUR", enabled: false,
-      yearlyReset: true, resetMonth: 1, bonuses: {
+      rollingWindow: true, creditExpiry: "1_year" as const,
+      bonuses: {
         referralEnabled: false, referralAmount: 0,
         referralNewCustomerAmount: 0, milestoneEnabled: false, milestones: [],
       },
@@ -70,6 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (search.length >= 2) {
     try {
+      // Search customers (without storeCreditAccounts to avoid scope errors)
       const response = await admin.graphql(
         `#graphql
         query SearchCustomers($query: String!, $first: Int!) {
@@ -84,14 +86,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               amountSpent {
                 amount
                 currencyCode
-              }
-              storeCreditAccounts(first: 1) {
-                nodes {
-                  balance {
-                    amount
-                    currencyCode
-                  }
-                }
               }
             }
           }
@@ -109,9 +103,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             loyaltyData = await getCustomerLoyaltyData(admin, c.id);
           } catch {}
 
-          const spendForTier = settings.yearlyReset
-            ? loyaltyData.periodSpent
-            : loyaltyData.totalSpent;
+          // Rolling 12-month spend for tier
+          const spendForTier = loyaltyData.periodSpent;
 
           const sortedTiers = [...settings.tiers].sort(
             (a, b) => a.minSpend - b.minSpend,
@@ -135,18 +128,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             spendProgress = range > 0 ? Math.min((progress / range) * 100, 100) : 100;
           }
 
-          const creditBalance = c.storeCreditAccounts?.nodes?.[0]?.balance;
-
           return {
             id: c.id,
             name: c.displayName || "Unknown",
             email: c.defaultEmailAddress?.emailAddress || "",
             orders: c.numberOfOrders || "0",
             totalSpent: `${c.amountSpent?.currencyCode || settings.currencyCode} ${parseFloat(c.amountSpent?.amount || "0").toFixed(2)}`,
-            storeCredit: creditBalance
-              ? `${creditBalance.currencyCode} ${parseFloat(creditBalance.amount).toFixed(2)}`
+            storeCredit: loyaltyData.storeCreditBalance
+              ? `${settings.currencyCode} ${parseFloat(loyaltyData.storeCreditBalance).toFixed(2)}`
               : "—",
-            loyaltySpent: loyaltyData.totalSpent,
+            loyaltySpent: spendForTier,
             loyaltyEarned: loyaltyData.totalEarned,
             tierName: tier?.name || "—",
             nextTierName: nextTier?.name || null,

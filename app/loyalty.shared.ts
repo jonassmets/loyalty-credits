@@ -24,14 +24,29 @@ export interface MilestoneBonus {
   label: string; // e.g. "500 EUR Club"
 }
 
+export type CreditExpiryOption = "never" | "1_month" | "3_months" | "6_months" | "1_year";
+
 export interface LoyaltySettings {
   enabled: boolean;
   tiers: LoyaltyTier[];
-  yearlyReset: boolean;
-  resetMonth: number; // 1 = January, 12 = December
+  /** Rolling 12-month window for tier calculation (always true) */
+  rollingWindow: boolean;
   currencyCode: string;
+  /** When store credit expires after being awarded */
+  creditExpiry: CreditExpiryOption;
   bonuses: BonusSettings;
+  // Legacy fields for backwards compatibility
+  yearlyReset?: boolean;
+  resetMonth?: number;
 }
+
+export const CREDIT_EXPIRY_OPTIONS: { label: string; value: CreditExpiryOption }[] = [
+  { label: "Never expires", value: "never" },
+  { label: "1 month", value: "1_month" },
+  { label: "3 months", value: "3_months" },
+  { label: "6 months", value: "6_months" },
+  { label: "1 year", value: "1_year" },
+];
 
 export const DEFAULT_SETTINGS: LoyaltySettings = {
   enabled: true,
@@ -40,9 +55,9 @@ export const DEFAULT_SETTINGS: LoyaltySettings = {
     { name: "Silver", minSpend: 5000, maxSpend: 10000, creditPercentage: 7 },
     { name: "Gold", minSpend: 10000, maxSpend: null, creditPercentage: 10 },
   ],
-  yearlyReset: true,
-  resetMonth: 1, // January
+  rollingWindow: true,
   currencyCode: "EUR",
+  creditExpiry: "1_year",
   bonuses: {
     referralEnabled: false,
     referralAmount: 10,
@@ -56,20 +71,30 @@ export const DEFAULT_SETTINGS: LoyaltySettings = {
   },
 };
 
-export const MONTH_OPTIONS = [
-  { label: "January", value: "1" },
-  { label: "February", value: "2" },
-  { label: "March", value: "3" },
-  { label: "April", value: "4" },
-  { label: "May", value: "5" },
-  { label: "June", value: "6" },
-  { label: "July", value: "7" },
-  { label: "August", value: "8" },
-  { label: "September", value: "9" },
-  { label: "October", value: "10" },
-  { label: "November", value: "11" },
-  { label: "December", value: "12" },
-];
+/**
+ * Calculate the expiry date from a CreditExpiryOption.
+ * Returns null if "never".
+ */
+export function getExpiryDate(option: CreditExpiryOption): Date | null {
+  if (option === "never") return null;
+  const now = new Date();
+  switch (option) {
+    case "1_month":
+      now.setMonth(now.getMonth() + 1);
+      return now;
+    case "3_months":
+      now.setMonth(now.getMonth() + 3);
+      return now;
+    case "6_months":
+      now.setMonth(now.getMonth() + 6);
+      return now;
+    case "1_year":
+      now.setFullYear(now.getFullYear() + 1);
+      return now;
+    default:
+      return null;
+  }
+}
 
 /**
  * Given a total spend amount, find the matching tier.

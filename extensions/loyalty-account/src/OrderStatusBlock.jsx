@@ -1,22 +1,39 @@
-import { render } from "preact";
+// @ts-nocheck
+import '@shopify/ui-extensions/preact';
+import {render} from 'preact';
 
-export default async (api) => {
-  render(<OrderStatusBlock api={api} />, document.body);
+export default async () => {
+  render(<OrderStatusBlock />, document.body);
 };
 
-function OrderStatusBlock({ api }) {
+function OrderStatusBlock() {
   return (
-    <s-banner tone="success">
-      <s-stack direction="block" gap="small">
-        <s-text type="strong">
-          You earned store credit on this order!
-        </s-text>
-        <s-text>
-          Your cashback is based on your spending tier. The more you shop
-          in the last 12 months, the higher your percentage. Credit is
-          applied automatically at your next checkout.
+    <s-section heading="Loyalty Rewards">
+      <s-stack direction="block" gap="base" paddingBlockStart="base">
+        <s-banner tone="success">
+          <s-text>
+            You earned store credit on this order! Your cashback percentage is
+            based on your spending in the last 12 months.
+          </s-text>
+        </s-banner>
+        <s-stack direction="inline" gap="base">
+          <s-stack direction="block" gap="small">
+            <s-text color="subdued">Bronze</s-text>
+            <s-text type="strong">5% back</s-text>
+          </s-stack>
+          <s-stack direction="block" gap="small">
+            <s-text color="subdued">Silver</s-text>
+            <s-text type="strong">7% back</s-text>
+          </s-stack>
+          <s-stack direction="block" gap="small">
+            <s-text color="subdued">Gold</s-text>
+            <s-text type="strong">10% back</s-text>
+          </s-stack>
+        </s-stack>
+        <s-text color="subdued">
+          Store credit is applied automatically at your next checkout.
         </s-text>
       </s-stack>
-    </s-banner>
+    </s-section>
   );
 }

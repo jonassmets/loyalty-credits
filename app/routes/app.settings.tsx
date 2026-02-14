@@ -14,7 +14,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { getSettings, saveSettings } from "../loyalty.server";
-import { DEFAULT_SETTINGS, MONTH_OPTIONS } from "../loyalty.shared";
+import { DEFAULT_SETTINGS, CREDIT_EXPIRY_OPTIONS } from "../loyalty.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -43,9 +43,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const updated = {
       ...currentSettings,
       enabled: incoming.enabled,
-      yearlyReset: incoming.yearlyReset,
-      resetMonth: incoming.resetMonth,
       currencyCode: incoming.currencyCode,
+      creditExpiry: incoming.creditExpiry,
+      rollingWindow: true, // always rolling
     };
 
     const result = await saveSettings(admin, updated);
@@ -66,23 +66,19 @@ export default function Settings() {
   const isSaving = navigation.state === "submitting";
 
   const [enabled, setEnabled] = useState(saved.enabled);
-  const [yearlyReset, setYearlyReset] = useState(saved.yearlyReset);
-  const [resetMonth, setResetMonth] = useState(saved.resetMonth.toString());
   const [currencyCode, setCurrencyCode] = useState(saved.currencyCode);
+  const [creditExpiry, setCreditExpiry] = useState(
+    (saved as any).creditExpiry || "1_year",
+  );
 
   const handleSave = useCallback(() => {
     const formData = new FormData();
     formData.set(
       "settings",
-      JSON.stringify({
-        enabled,
-        yearlyReset,
-        resetMonth: parseInt(resetMonth, 10),
-        currencyCode,
-      }),
+      JSON.stringify({ enabled, currencyCode, creditExpiry }),
     );
     submit(formData, { method: "post" });
-  }, [enabled, yearlyReset, resetMonth, currencyCode, submit]);
+  }, [enabled, currencyCode, creditExpiry, submit]);
 
   const currencyOptions = [
     { label: "EUR (€) — Euro", value: "EUR" },
@@ -99,6 +95,11 @@ export default function Settings() {
     { label: "JPY (¥) — Japanese Yen", value: "JPY" },
     { label: "NZD (NZ$) — New Zealand Dollar", value: "NZD" },
   ];
+
+  const expiryOptions = CREDIT_EXPIRY_OPTIONS.map((o) => ({
+    label: o.label,
+    value: o.value,
+  }));
 
   return (
     <Page
@@ -146,7 +147,7 @@ export default function Settings() {
 
           <Layout.AnnotatedSection
             title="Currency"
-            description="The currency used for store credit. This should match your shop's primary currency for accurate calculations."
+            description="The currency used for store credit. This should match your shop's primary currency."
           >
             <Card>
               <BlockStack gap="300">
@@ -157,64 +158,70 @@ export default function Settings() {
                   onChange={setCurrencyCode}
                   helpText="Store credit is always issued in this currency."
                 />
+              </BlockStack>
+            </Card>
+          </Layout.AnnotatedSection>
+
+          <Layout.AnnotatedSection
+            title="Tier calculation"
+            description="How the app determines which tier a customer belongs to."
+          >
+            <Card>
+              <BlockStack gap="400">
+                <Banner tone="info">
+                  <p>
+                    <strong>Rolling 12-month window:</strong> A customer's tier
+                    is always based on their spending in the last 12 months. This
+                    is calculated from actual order dates — not a calendar reset.
+                    If a customer doesn't purchase for a year, they naturally
+                    drop to the lowest tier.
+                  </p>
+                </Banner>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  If your shop uses multiple currencies, store credit is still
-                  issued in this primary currency. Shopify automatically handles
-                  conversion at checkout.
+                  Example: A customer who spent €7,000 between March 2025 and
+                  February 2026 is in the Silver tier (7% cashback). If they
+                  stop buying, their 12-month total decreases as old orders
+                  fall outside the window.
                 </Text>
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>
 
           <Layout.AnnotatedSection
-            title="Spending period"
-            description="Configure whether customer spending totals reset periodically. This affects tier placement."
+            title="Store credit expiry"
+            description="Choose how long store credit stays in a customer's account after being awarded."
           >
             <Card>
               <BlockStack gap="400">
-                <Checkbox
-                  label="Reset spending totals yearly"
-                  helpText="When enabled, customers restart from the lowest tier at the beginning of each period. Their existing store credit balance is not affected."
-                  checked={yearlyReset}
-                  onChange={setYearlyReset}
+                <Select
+                  label="Credit expires after"
+                  options={expiryOptions}
+                  value={creditExpiry}
+                  onChange={setCreditExpiry}
+                  helpText="Expiry is set per credit transaction at the time of award."
                 />
-
-                {yearlyReset && (
-                  <>
-                    <Select
-                      label="Reset month"
-                      options={MONTH_OPTIONS}
-                      value={resetMonth}
-                      onChange={setResetMonth}
-                      helpText="Spending totals reset on the 1st of this month each year."
-                    />
-                    <Banner tone="info">
-                      <p>
-                        <strong>How yearly reset works:</strong> On the 1st of{" "}
-                        {MONTH_OPTIONS.find((m) => m.value === resetMonth)?.label || "the chosen month"},{" "}
-                        each customer's spending counter resets to zero. They
-                        start earning from the lowest tier again. Any store
-                        credit already in their account stays — only the tier
-                        calculation resets.
-                      </p>
-                    </Banner>
-                  </>
-                )}
-
-                {!yearlyReset && (
+                {creditExpiry === "never" && (
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Spending is tracked forever. Once a customer reaches a
-                    higher tier, they keep it permanently. This is great for
-                    long-term customer loyalty.
+                    Store credit never expires. Once awarded, it stays in the
+                    customer's account until they use it.
                   </Text>
+                )}
+                {creditExpiry !== "never" && (
+                  <Banner tone="warning">
+                    <p>
+                      Each store credit award will have an expiry date. Shopify
+                      automatically removes expired credits. Make sure your
+                      customers know about the expiry policy.
+                    </p>
+                  </Banner>
                 )}
               </BlockStack>
             </Card>
           </Layout.AnnotatedSection>
 
           <Layout.AnnotatedSection
-            title="How store credit works"
-            description="Technical details about how the loyalty program integrates with Shopify."
+            title="How it works"
+            description="Technical details about the loyalty program."
           >
             <Card>
               <BlockStack gap="300">
@@ -232,9 +239,9 @@ export default function Settings() {
                 </Text>
                 <Text variant="bodyMd" as="p">
                   Store credit is awarded when an order is marked as paid. The
-                  app receives a webhook from Shopify, calculates the credit
-                  based on the customer's tier, and adds it to their account
-                  instantly.
+                  app receives a webhook from Shopify, looks at the customer's
+                  orders in the last 12 months to determine their tier, then
+                  awards that tier's percentage as store credit.
                 </Text>
                 <Divider />
                 <Text variant="headingSm" as="h3">
@@ -247,26 +254,11 @@ export default function Settings() {
                 </Text>
                 <Divider />
                 <Text variant="headingSm" as="h3">
-                  Tier calculation
-                </Text>
-                <Text variant="bodyMd" as="p">
-                  The customer's tier is determined by their cumulative spending
-                  {yearlyReset
-                    ? " within the current period"
-                    : " since they first purchased"}
-                  . When they place an order, their spending is updated first,
-                  then the appropriate tier percentage is applied to calculate
-                  the credit.
-                </Text>
-                <Divider />
-                <Text variant="headingSm" as="h3">
                   Manual credits
                 </Text>
                 <Text variant="bodyMd" as="p">
                   You can also add store credit manually from the Customers page.
-                  This is useful for returns, complaints, promotions, or
-                  referral rewards. Manual credits are logged separately in the
-                  Activity page.
+                  Manual credits follow the same expiry setting configured above.
                 </Text>
               </BlockStack>
             </Card>

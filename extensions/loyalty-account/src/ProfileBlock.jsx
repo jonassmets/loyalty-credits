@@ -1,43 +1,31 @@
-import { render } from "preact";
+// @ts-nocheck
+import '@shopify/ui-extensions/preact';
+import {render} from 'preact';
 
-export default async (api) => {
-  render(<ProfileBlock api={api} />, document.body);
+export default async () => {
+  render(<ProfileBlock />, document.body);
 };
 
-function ProfileBlock({ api }) {
-  const i18n = api.i18n;
+function ProfileBlock() {
+  const i18n = shopify.i18n;
 
-  // The loyalty tiers — kept in sync with app settings
   const tiers = [
-    { name: "Bronze", minSpend: 0, percentage: 5 },
-    { name: "Silver", minSpend: 5000, percentage: 7 },
-    { name: "Gold", minSpend: 10000, percentage: 10 },
+    {name: 'Bronze', minSpend: 0, maxLabel: '5,000', percentage: 5},
+    {name: 'Silver', minSpend: 5000, maxLabel: '10,000', percentage: 7},
+    {name: 'Gold', minSpend: 10000, maxLabel: null, percentage: 10},
   ];
 
   return (
-    <s-section>
-      <s-stack direction="block" gap="base">
-        <s-stack direction="inline" inline-alignment="space-between">
-          <s-text type="strong" color="subdued">
-            LOYALTY PROGRAM
-          </s-text>
-          <s-text type="strong" tone="success">
-            Active
-          </s-text>
-        </s-stack>
-
-        <s-text>
-          Earn store credit on every purchase. The more you spend in the last
-          12 months, the higher your cashback percentage.
-        </s-text>
-
+    <s-section heading="Loyalty Rewards">
+      <s-stack direction="block" gap="base" paddingBlockStart="base">
         <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="large">
           {tiers.map((t) => (
             <s-stack key={t.name} direction="block" gap="small">
               <s-text type="strong">{t.name}</s-text>
               <s-text color="subdued">
-                {t.minSpend === 0 ? "Up to" : "From"}{" "}
-                {i18n.formatCurrency(t.minSpend || 5000, { currency: "EUR" })}
+                {t.maxLabel
+                  ? `${i18n.formatCurrency(t.minSpend, {currency: 'EUR'})} – ${i18n.formatCurrency(parseInt(t.maxLabel.replace(/,/g, '')), {currency: 'EUR'})}`
+                  : `${i18n.formatCurrency(t.minSpend, {currency: 'EUR'})}+`}
               </s-text>
               <s-text tone="success" type="strong">
                 {t.percentage}% back
@@ -47,9 +35,15 @@ function ProfileBlock({ api }) {
         </s-grid>
 
         <s-text color="subdued">
-          Store credit is applied automatically at checkout. No code needed.
-          Keep shopping to maintain or increase your tier!
+          Earn store credit on every purchase based on your 12-month spending.
+          Credit is applied automatically at checkout.
         </s-text>
+
+        <s-stack direction="block" max-inline-size="160">
+          <s-button tone="neutral" variant="secondary" href="extension:loyalty-rewards-page/">
+            View rewards
+          </s-button>
+        </s-stack>
       </s-stack>
     </s-section>
   );

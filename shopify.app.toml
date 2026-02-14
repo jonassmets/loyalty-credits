@@ -7,7 +7,7 @@ embedded = true
 embedded = true
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_customers,write_customers,read_gift_cards,write_gift_cards"
+scopes = "read_orders,write_orders,read_customers,write_customers,read_store_credit_accounts,write_store_credit_accounts"
 
 [auth]
 redirect_urls = [ "https://loyalty-credits.onrender.com/auth/callback" ]
@@ -19,4 +19,11 @@ api_version = "2025-01"
   topics = [ "app/uninstalled" ]
   uri = "/webhooks"
 
+  [[webhooks.subscriptions]]
+  topics = [ "orders/paid" ]
+  uri = "/webhooks"
 
+  [webhooks.privacy_compliance]
+  customer_data_request_url = "https://loyalty-credits.onrender.com/webhooks"
+  customer_deletion_url = "https://loyalty-credits.onrender.com/webhooks"
+  shop_deletion_url = "https://loyalty-credits.onrender.com/webhooks"
