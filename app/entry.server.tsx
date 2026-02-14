@@ -14,7 +14,17 @@ export default function handleRequest(
   responseHeaders: Headers,
   routerContext: EntryContext,
 ) {
-  addDocumentResponseHeaders(request, responseHeaders);
+  try {
+    addDocumentResponseHeaders(request, responseHeaders);
+  } catch (e) {
+    console.error("[entry.server] addDocumentResponseHeaders failed:", e);
+    (globalThis as any).__lastAppError = {
+      message: `entry.server addDocumentResponseHeaders: ${(e as Error).message}`,
+      source: "entry.server.tsx",
+      time: new Date().toISOString(),
+    };
+  }
+
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
 
@@ -35,11 +45,24 @@ export default function handleRequest(
           pipe(body);
         },
         onShellError(error: unknown) {
+          console.error("[entry.server] Shell render error:", error);
+          (globalThis as any).__lastAppError = {
+            message: `SSR shell error: ${(error as Error).message}`,
+            stack: (error as Error).stack?.split("\n").slice(0, 8),
+            source: "entry.server.tsx onShellError",
+            time: new Date().toISOString(),
+          };
           reject(error);
         },
         onError(error: unknown) {
           responseStatusCode = 500;
-          console.error(error);
+          console.error("[entry.server] Render error:", error);
+          (globalThis as any).__lastAppError = {
+            message: `SSR render error: ${(error as Error).message}`,
+            stack: (error as Error).stack?.split("\n").slice(0, 8),
+            source: "entry.server.tsx onError",
+            time: new Date().toISOString(),
+          };
         },
       },
     );
