@@ -1,71 +1,127 @@
 {% comment %}
   Loyalty Credits - Product Cashback Banner
-  Shows the amount of store credit a customer earns by purchasing this product.
-  Dynamically calculated from the product price and the configured percentages.
-  Place this block on product pages in the theme editor.
+  Dynamic: shows exact % for logged-in customers based on their total_spent metafield.
+  Falls back to showing the range (min–max) for guests.
 {% endcomment %}
 
 {% assign product_price = product.selected_or_first_available_variant.price | times: 1.0 %}
-{% assign min_pct = block.settings.min_percentage | times: 1.0 %}
-{% assign max_pct = block.settings.max_percentage | times: 1.0 %}
+{% assign min_pct = block.settings.tier1_pct | times: 1.0 %}
+{% assign max_pct = block.settings.tier3_pct | times: 1.0 %}
 
-{% assign min_credit = product_price | times: min_pct | divided_by: 100.0 | divided_by: 100.0 %}
-{% assign max_credit = product_price | times: max_pct | divided_by: 100.0 | divided_by: 100.0 %}
+{% comment %} Determine customer tier from total_spent metafield {% endcomment %}
+{% assign customer_pct = 0 %}
+{% assign customer_tier_name = "" %}
+{% assign is_logged_in = false %}
+
+{% if customer %}
+  {% assign is_logged_in = true %}
+  {% assign total_spent = customer.metafields.loyalty_credits.total_spent.value | default: 0 | times: 1.0 %}
+  {% assign t1_min = block.settings.tier1_min | times: 1.0 %}
+  {% assign t2_min = block.settings.tier2_min | times: 1.0 %}
+  {% assign t3_min = block.settings.tier3_min | times: 1.0 %}
+
+  {% if total_spent >= t3_min %}
+    {% assign customer_pct = block.settings.tier3_pct | times: 1.0 %}
+    {% assign customer_tier_name = block.settings.tier3_name %}
+  {% elsif total_spent >= t2_min %}
+    {% assign customer_pct = block.settings.tier2_pct | times: 1.0 %}
+    {% assign customer_tier_name = block.settings.tier2_name %}
+  {% else %}
+    {% assign customer_pct = block.settings.tier1_pct | times: 1.0 %}
+    {% assign customer_tier_name = block.settings.tier1_name %}
+  {% endif %}
+{% endif %}
 
 {% if product_price > 0 %}
-  <div class="loyalty-cashback" style="
-    background: {{ block.settings.bg_color }};
-    color: {{ block.settings.text_color }};
-    border-radius: {{ block.settings.border_radius }}px;
-    padding: {{ block.settings.padding }}px;
-    margin: 8px 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  ">
-    {% if block.settings.show_icon %}
-      <span style="
-        font-size: 24px;
-        flex-shrink: 0;
-        width: 36px;
-        height: 36px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: {{ block.settings.accent_color }};
-        color: {{ block.settings.bg_color }};
-        border-radius: 50%;
-        font-size: 16px;
-      ">{{ block.settings.icon }}</span>
-    {% endif %}
-
-    <div style="flex: 1;">
-      {% if min_pct == max_pct %}
+  {% if is_logged_in and customer_pct > 0 %}
+    {% assign exact_credit = product_price | times: customer_pct | divided_by: 10000.0 %}
+    <div class="loyalty-cashback" style="
+      background: {{ block.settings.bg_color }};
+      color: {{ block.settings.text_color }};
+      border-radius: {{ block.settings.border_radius }}px;
+      padding: {{ block.settings.padding }}px;
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    ">
+      {% if block.settings.show_icon %}
+        <span style="
+          flex-shrink: 0;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: {{ block.settings.accent_color }};
+          color: {{ block.settings.bg_color }};
+          border-radius: 50%;
+          font-size: 16px;
+        ">{{ block.settings.icon }}</span>
+      {% endif %}
+      <div style="flex: 1;">
         <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
-          Earn {{ max_credit | money_without_trailing_zeros }} store credit
+          Earn {{ exact_credit | money_without_trailing_zeros }} store credit
         </p>
         <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
-          {{ max_pct | divided_by: 100.0 }}% cashback on this purchase
+          {{ customer_pct | divided_by: 100.0 }}% cashback as {{ customer_tier_name }} member
         </p>
-      {% else %}
-        <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
-          Earn {{ min_credit | money_without_trailing_zeros }} – {{ max_credit | money_without_trailing_zeros }} store credit
-        </p>
-        <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
-          {{ block.settings.subtext }}
-        </p>
+      </div>
+    </div>
+  {% else %}
+    {% assign min_credit = product_price | times: min_pct | divided_by: 10000.0 %}
+    {% assign max_credit = product_price | times: max_pct | divided_by: 10000.0 %}
+    <div class="loyalty-cashback" style="
+      background: {{ block.settings.bg_color }};
+      color: {{ block.settings.text_color }};
+      border-radius: {{ block.settings.border_radius }}px;
+      padding: {{ block.settings.padding }}px;
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    ">
+      {% if block.settings.show_icon %}
+        <span style="
+          flex-shrink: 0;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: {{ block.settings.accent_color }};
+          color: {{ block.settings.bg_color }};
+          border-radius: 50%;
+          font-size: 16px;
+        ">{{ block.settings.icon }}</span>
+      {% endif %}
+      <div style="flex: 1;">
+        {% if min_pct == max_pct %}
+          <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
+            Earn {{ min_credit | money_without_trailing_zeros }} store credit
+          </p>
+          <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
+            {{ min_pct | divided_by: 100.0 }}% cashback on this purchase
+          </p>
+        {% else %}
+          <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 600;">
+            Earn {{ min_credit | money_without_trailing_zeros }} – {{ max_credit | money_without_trailing_zeros }} store credit
+          </p>
+          <p style="margin: 2px 0 0; font-size: {{ block.settings.font_size | minus: 2 }}px; opacity: 0.75;">
+            {{ block.settings.subtext }}
+          </p>
+        {% endif %}
+      </div>
+      {% if block.settings.show_login_link %}
+        <a href="{{ routes.account_login_url }}" style="
+          color: {{ block.settings.accent_color }};
+          font-size: 12px;
+          text-decoration: underline;
+          flex-shrink: 0;
+        ">Log in for your rate</a>
       {% endif %}
     </div>
-
-    {% if block.settings.show_info_link and block.settings.info_url != blank %}
-      <a href="{{ block.settings.info_url }}" style="
-        color: {{ block.settings.accent_color }};
-        font-size: 12px;
-        text-decoration: underline;
-        flex-shrink: 0;
-      ">{{ block.settings.info_text }}</a>
-    {% endif %}
-  </div>
+  {% endif %}
 {% endif %}
 
 {% schema %}
@@ -75,26 +131,70 @@
   "settings": [
     {
       "type": "header",
-      "content": "Cashback percentages"
+      "content": "Tier settings (match your app)"
+    },
+    {
+      "type": "text",
+      "id": "tier1_name",
+      "label": "Tier 1 name",
+      "default": "Bronze"
     },
     {
       "type": "number",
-      "id": "min_percentage",
-      "label": "Minimum tier percentage (x100)",
-      "info": "Enter 500 for 5%, 700 for 7%, 1000 for 10%",
+      "id": "tier1_pct",
+      "label": "Tier 1 percentage (x100)",
+      "info": "500 = 5%",
       "default": 500
     },
     {
       "type": "number",
-      "id": "max_percentage",
-      "label": "Maximum tier percentage (x100)",
-      "info": "Enter 500 for 5%, 700 for 7%, 1000 for 10%",
+      "id": "tier1_min",
+      "label": "Tier 1 min spend (cents)",
+      "info": "0 for the base tier",
+      "default": 0
+    },
+    {
+      "type": "text",
+      "id": "tier2_name",
+      "label": "Tier 2 name",
+      "default": "Silver"
+    },
+    {
+      "type": "number",
+      "id": "tier2_pct",
+      "label": "Tier 2 percentage (x100)",
+      "info": "700 = 7%",
+      "default": 700
+    },
+    {
+      "type": "number",
+      "id": "tier2_min",
+      "label": "Tier 2 min spend (cents)",
+      "default": 500000
+    },
+    {
+      "type": "text",
+      "id": "tier3_name",
+      "label": "Tier 3 name",
+      "default": "Gold"
+    },
+    {
+      "type": "number",
+      "id": "tier3_pct",
+      "label": "Tier 3 percentage (x100)",
+      "info": "1000 = 10%",
       "default": 1000
+    },
+    {
+      "type": "number",
+      "id": "tier3_min",
+      "label": "Tier 3 min spend (cents)",
+      "default": 1000000
     },
     {
       "type": "text",
       "id": "subtext",
-      "label": "Subtitle text",
+      "label": "Guest subtitle",
       "default": "Based on your loyalty tier. Spend more to earn more!"
     },
     {
@@ -162,25 +262,10 @@
       "default": "★"
     },
     {
-      "type": "header",
-      "content": "Info link"
-    },
-    {
       "type": "checkbox",
-      "id": "show_info_link",
-      "label": "Show info link",
+      "id": "show_login_link",
+      "label": "Show 'Log in' link for guests",
       "default": true
-    },
-    {
-      "type": "text",
-      "id": "info_text",
-      "label": "Link text",
-      "default": "Learn more"
-    },
-    {
-      "type": "url",
-      "id": "info_url",
-      "label": "Link URL"
     }
   ]
 }

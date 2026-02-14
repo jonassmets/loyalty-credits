@@ -1,81 +1,207 @@
 {% comment %}
-  Loyalty Credits App Embed
-  Floating loyalty indicator visible on all pages.
-  Configured via the theme editor under "App embeds".
+  Loyalty Credits - Floating Widget (App Embed)
+  Dynamic: shows customer's actual tier, progress bar, and balance when logged in.
+  Shows program overview for guests.
 {% endcomment %}
 
+{% comment %} Tier configuration from block settings {% endcomment %}
+{% assign t1_name = block.settings.tier1_name %}
+{% assign t1_pct = block.settings.tier1_pct | times: 1.0 %}
+{% assign t1_min = block.settings.tier1_min | times: 1.0 %}
+{% assign t2_name = block.settings.tier2_name %}
+{% assign t2_pct = block.settings.tier2_pct | times: 1.0 %}
+{% assign t2_min = block.settings.tier2_min | times: 1.0 %}
+{% assign t3_name = block.settings.tier3_name %}
+{% assign t3_pct = block.settings.tier3_pct | times: 1.0 %}
+{% assign t3_min = block.settings.tier3_min | times: 1.0 %}
+
+{% comment %} Determine customer tier {% endcomment %}
+{% assign current_tier_name = t1_name %}
+{% assign current_pct = t1_pct %}
+{% assign current_tier_idx = 0 %}
+{% assign total_spent = 0 %}
+{% assign next_tier_name = t2_name %}
+{% assign next_tier_min = t2_min %}
+{% assign next_tier_pct = t2_pct %}
+{% assign progress_pct = 0 %}
+{% assign to_next = t2_min %}
+
 {% if customer %}
-  {% assign loyalty_earned = customer.metafields.app.loyalty_total_earned.value | default: 0 | times: 1.0 %}
-  <div id="loyalty-embed" style="
-    position: fixed;
-    {{ block.settings.position }}: 20px;
-    bottom: 20px;
-    z-index: 9999;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  {% assign total_spent = customer.metafields.loyalty_credits.total_spent.value | default: 0 | times: 1.0 %}
+  {% assign balance = customer.metafields.loyalty_credits.balance.value | default: 0 | times: 1.0 %}
+
+  {% if total_spent >= t3_min %}
+    {% assign current_tier_name = t3_name %}
+    {% assign current_pct = t3_pct %}
+    {% assign current_tier_idx = 2 %}
+    {% assign next_tier_name = "" %}
+    {% assign progress_pct = 100 %}
+    {% assign to_next = 0 %}
+  {% elsif total_spent >= t2_min %}
+    {% assign current_tier_name = t2_name %}
+    {% assign current_pct = t2_pct %}
+    {% assign current_tier_idx = 1 %}
+    {% assign next_tier_name = t3_name %}
+    {% assign next_tier_min = t3_min %}
+    {% assign next_tier_pct = t3_pct %}
+    {% assign range = t3_min | minus: t2_min %}
+    {% assign done = total_spent | minus: t2_min %}
+    {% if range > 0 %}
+      {% assign progress_pct = done | times: 100.0 | divided_by: range %}
+    {% endif %}
+    {% assign to_next = t3_min | minus: total_spent %}
+  {% else %}
+    {% assign current_tier_name = t1_name %}
+    {% assign current_pct = t1_pct %}
+    {% assign current_tier_idx = 0 %}
+    {% assign next_tier_name = t2_name %}
+    {% assign next_tier_min = t2_min %}
+    {% assign next_tier_pct = t2_pct %}
+    {% assign range = t2_min | minus: t1_min %}
+    {% assign done = total_spent | minus: t1_min %}
+    {% if range > 0 %}
+      {% assign progress_pct = done | times: 100.0 | divided_by: range %}
+    {% endif %}
+    {% assign to_next = t2_min | minus: total_spent %}
+  {% endif %}
+
+  {% if progress_pct > 100 %}{% assign progress_pct = 100 %}{% endif %}
+  {% if progress_pct < 0 %}{% assign progress_pct = 0 %}{% endif %}
+  {% if to_next < 0 %}{% assign to_next = 0 %}{% endif %}
+{% endif %}
+
+<div id="loyalty-embed" style="
+  position: fixed;
+  {{ block.settings.position }}: 20px;
+  bottom: 20px;
+  z-index: 9999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+">
+  <!-- Toggle button -->
+  <button id="loyalty-embed-toggle" aria-label="Loyalty rewards" style="
+    background: {{ block.settings.bg_color }};
+    color: {{ block.settings.text_color }};
+    border: none;
+    border-radius: 50px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.2s;
   ">
-    <button id="loyalty-embed-toggle" style="
-      background: {{ block.settings.bg_color }};
-      color: {{ block.settings.text_color }};
-      border: none;
-      border-radius: 50px;
-      padding: 12px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: transform 0.2s;
-    ">
-      <span>{{ block.settings.icon }}</span>
-      <span>{{ loyalty_earned | money_without_trailing_zeros }} credit</span>
-    </button>
+    <span>{{ block.settings.icon }}</span>
+    {% if customer %}
+      <span>{{ current_tier_name }} · {{ current_pct | divided_by: 100.0 }}%</span>
+    {% else %}
+      <span>Earn up to {{ t3_pct | divided_by: 100.0 }}% back</span>
+    {% endif %}
+  </button>
 
-    <div id="loyalty-embed-panel" style="
-      display: none;
-      position: absolute;
-      bottom: 56px;
-      {{ block.settings.position }}: 0;
-      background: {{ block.settings.bg_color }};
-      color: {{ block.settings.text_color }};
-      border-radius: 16px;
-      padding: 20px;
-      min-width: 280px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-    ">
-      <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.7; margin: 0 0 4px;">
-        {{ block.settings.heading }}
-      </p>
-      <p style="font-size: 28px; font-weight: 700; margin: 0 0 12px; color: {{ block.settings.accent_color }};">
-        {{ loyalty_earned | money_without_trailing_zeros }}
-      </p>
-
-      <p style="font-size: 13px; margin: 0 0 16px; opacity: 0.8;">
-        {{ block.settings.description }}
-      </p>
-
-      <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-        {% for tier_index in (0..2) %}
-          {% if tier_index == 0 %}
-            {% assign t_name = block.settings.tier1_name %}
-            {% assign t_pct = block.settings.tier1_pct %}
-          {% elsif tier_index == 1 %}
-            {% assign t_name = block.settings.tier2_name %}
-            {% assign t_pct = block.settings.tier2_pct %}
-          {% else %}
-            {% assign t_name = block.settings.tier3_name %}
-            {% assign t_pct = block.settings.tier3_pct %}
-          {% endif %}
-          {% if t_name != blank %}
-            <div style="flex: 1; text-align: center;">
-              <p style="font-size: 11px; opacity: 0.7; margin: 0;">{{ t_name }}</p>
-              <p style="font-size: 16px; font-weight: 700; margin: 2px 0 0; color: {{ block.settings.accent_color }};">{{ t_pct }}%</p>
-            </div>
-          {% endif %}
-        {% endfor %}
+  <!-- Panel -->
+  <div id="loyalty-embed-panel" style="
+    display: none;
+    position: absolute;
+    bottom: 56px;
+    {{ block.settings.position }}: 0;
+    background: {{ block.settings.bg_color }};
+    color: {{ block.settings.text_color }};
+    border-radius: 16px;
+    padding: 24px;
+    min-width: 300px;
+    max-width: 340px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+  ">
+    {% if customer %}
+      <!-- LOGGED IN: show tier, progress, balance -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+        <div>
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Your Tier</div>
+          <div style="font-size: 22px; font-weight: 800; color: {{ block.settings.accent_color }}; margin-top: 2px;">
+            {{ current_tier_name }}
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Balance</div>
+          <div style="font-size: 20px; font-weight: 700; color: {{ block.settings.accent_color }}; margin-top: 2px;">
+            {{ balance | money_without_trailing_zeros }}
+          </div>
+        </div>
       </div>
 
+      <div style="font-size: 14px; margin-bottom: 16px;">
+        You get <strong style="color: {{ block.settings.accent_color }};">{{ current_pct | divided_by: 100.0 }}%</strong> cashback on every purchase
+      </div>
+
+      <!-- Progress bar -->
+      {% if next_tier_name != blank %}
+        <div style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.6; margin-bottom: 6px;">
+            <span>{{ total_spent | money_without_trailing_zeros }} spent</span>
+            <span>{{ next_tier_name }} at {{ next_tier_min | money_without_trailing_zeros }}</span>
+          </div>
+          <div style="background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
+            <div style="
+              width: {{ progress_pct }}%;
+              height: 100%;
+              background: {{ block.settings.accent_color }};
+              border-radius: 6px;
+              transition: width 0.4s ease;
+            "></div>
+          </div>
+          <div style="font-size: 11px; opacity: 0.6; margin-top: 4px;">
+            {{ to_next | money_without_trailing_zeros }} to {{ next_tier_name }} ({{ next_tier_pct | divided_by: 100.0 }}% back)
+          </div>
+        </div>
+      {% else %}
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 11px; opacity: 0.6; margin-bottom: 6px;">Top tier reached!</div>
+          <div style="background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
+            <div style="width: 100%; height: 100%; background: {{ block.settings.accent_color }}; border-radius: 6px;"></div>
+          </div>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <!-- GUEST: show program overview -->
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.6;">Loyalty Program</div>
+        <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">Earn cashback on every order</div>
+      </div>
+
+      <div style="font-size: 13px; opacity: 0.8; margin-bottom: 16px;">
+        {{ block.settings.description }}
+      </div>
+    {% endif %}
+
+    <!-- Tier breakdown (always shown) -->
+    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+      <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 0 and customer %}{{ block.settings.tier1_color }}{% else %}rgba(255,255,255,0.15){% endif %};"></div>
+      <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 1 and customer %}{{ block.settings.tier2_color }}{% else %}rgba(255,255,255,0.15){% endif %};"></div>
+      <div style="flex: 1; height: 3px; border-radius: 2px; background: {% if current_tier_idx >= 2 and customer %}{{ block.settings.tier3_color }}{% else %}rgba(255,255,255,0.15){% endif %};"></div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+      <span style="font-size: 10px; {% if current_tier_idx == 0 and customer %}color: {{ block.settings.tier1_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t1_name }} {{ t1_pct | divided_by: 100.0 }}%</span>
+      <span style="font-size: 10px; {% if current_tier_idx == 1 and customer %}color: {{ block.settings.tier2_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t2_name }} {{ t2_pct | divided_by: 100.0 }}%</span>
+      <span style="font-size: 10px; {% if current_tier_idx == 2 and customer %}color: {{ block.settings.tier3_color }}; font-weight: 700;{% else %}opacity: 0.5;{% endif %}">{{ t3_name }} {{ t3_pct | divided_by: 100.0 }}%</span>
+    </div>
+
+    {% unless customer %}
+      <a href="{{ routes.account_login_url }}" style="
+        display: block;
+        text-align: center;
+        background: {{ block.settings.accent_color }};
+        color: {{ block.settings.bg_color }};
+        padding: 10px 16px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+      ">Log in to see your tier</a>
+    {% else %}
       {% if block.settings.link_url != blank %}
         <a href="{{ block.settings.link_url }}" style="
           display: block;
@@ -89,26 +215,29 @@
           font-size: 13px;
         ">{{ block.settings.link_text }}</a>
       {% endif %}
-    </div>
+    {% endunless %}
   </div>
+</div>
 
-  <script>
-    (function() {
-      var toggle = document.getElementById('loyalty-embed-toggle');
-      var panel = document.getElementById('loyalty-embed-panel');
-      if (toggle && panel) {
-        toggle.addEventListener('click', function() {
-          panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        });
-        document.addEventListener('click', function(e) {
-          if (!document.getElementById('loyalty-embed').contains(e.target)) {
-            panel.style.display = 'none';
-          }
-        });
-      }
-    })();
-  </script>
-{% endif %}
+<script>
+  (function() {
+    var toggle = document.getElementById('loyalty-embed-toggle');
+    var panel = document.getElementById('loyalty-embed-panel');
+    if (toggle && panel) {
+      toggle.addEventListener('click', function() {
+        var open = panel.style.display !== 'none';
+        panel.style.display = open ? 'none' : 'block';
+        toggle.style.transform = open ? 'scale(1)' : 'scale(0.95)';
+      });
+      document.addEventListener('click', function(e) {
+        if (!document.getElementById('loyalty-embed').contains(e.target)) {
+          panel.style.display = 'none';
+          toggle.style.transform = 'scale(1)';
+        }
+      });
+    }
+  })();
+</script>
 
 {% schema %}
 {
@@ -123,19 +252,37 @@
       "type": "color",
       "id": "bg_color",
       "label": "Background color",
-      "default": "#1a1a2e"
+      "default": "#111827"
     },
     {
       "type": "color",
       "id": "text_color",
       "label": "Text color",
-      "default": "#ffffff"
+      "default": "#f9fafb"
     },
     {
       "type": "color",
       "id": "accent_color",
       "label": "Accent color",
-      "default": "#00e676"
+      "default": "#22c55e"
+    },
+    {
+      "type": "color",
+      "id": "tier1_color",
+      "label": "Tier 1 color",
+      "default": "#3b82f6"
+    },
+    {
+      "type": "color",
+      "id": "tier2_color",
+      "label": "Tier 2 color",
+      "default": "#a855f7"
+    },
+    {
+      "type": "color",
+      "id": "tier3_color",
+      "label": "Tier 3 color",
+      "default": "#f59e0b"
     },
     {
       "type": "select",
@@ -155,23 +302,7 @@
     },
     {
       "type": "header",
-      "content": "Content"
-    },
-    {
-      "type": "text",
-      "id": "heading",
-      "label": "Heading",
-      "default": "Your Store Credit"
-    },
-    {
-      "type": "text",
-      "id": "description",
-      "label": "Description",
-      "default": "Earn cashback on every purchase. The more you spend, the higher your tier!"
-    },
-    {
-      "type": "header",
-      "content": "Tiers (match your app settings)"
+      "content": "Tier settings (match your app)"
     },
     {
       "type": "text",
@@ -180,10 +311,17 @@
       "default": "Bronze"
     },
     {
-      "type": "text",
+      "type": "number",
       "id": "tier1_pct",
-      "label": "Tier 1 percentage",
-      "default": "5"
+      "label": "Tier 1 % (x100)",
+      "info": "500 = 5%",
+      "default": 500
+    },
+    {
+      "type": "number",
+      "id": "tier1_min",
+      "label": "Tier 1 min spend (cents)",
+      "default": 0
     },
     {
       "type": "text",
@@ -192,10 +330,17 @@
       "default": "Silver"
     },
     {
-      "type": "text",
+      "type": "number",
       "id": "tier2_pct",
-      "label": "Tier 2 percentage",
-      "default": "7"
+      "label": "Tier 2 % (x100)",
+      "info": "700 = 7%",
+      "default": 700
+    },
+    {
+      "type": "number",
+      "id": "tier2_min",
+      "label": "Tier 2 min spend (cents)",
+      "default": 500000
     },
     {
       "type": "text",
@@ -204,20 +349,33 @@
       "default": "Gold"
     },
     {
-      "type": "text",
+      "type": "number",
       "id": "tier3_pct",
-      "label": "Tier 3 percentage",
-      "default": "10"
+      "label": "Tier 3 % (x100)",
+      "info": "1000 = 10%",
+      "default": 1000
+    },
+    {
+      "type": "number",
+      "id": "tier3_min",
+      "label": "Tier 3 min spend (cents)",
+      "default": 1000000
     },
     {
       "type": "header",
-      "content": "Link"
+      "content": "Content"
+    },
+    {
+      "type": "text",
+      "id": "description",
+      "label": "Guest description",
+      "default": "Earn cashback on every purchase. The more you spend, the higher your tier!"
     },
     {
       "type": "text",
       "id": "link_text",
       "label": "Link text",
-      "default": "Learn more"
+      "default": "View full rewards"
     },
     {
       "type": "url",

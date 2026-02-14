@@ -6,6 +6,9 @@ name = "Loyalty Credits - Customer Account"
 handle = "loyalty-account"
 uid = "8ea3c599-0904-df5e-db42-642a579c982e53dc2001"
 
+[extensions.capabilities]
+api_access = true
+
 [[extensions.targeting]]
 target = "customer-account.profile.block.render"
 module = "./src/ProfileBlock.jsx"
@@ -19,6 +22,9 @@ type = "ui_extension"
 name = "Loyalty Credits - Rewards Page"
 handle = "loyalty-rewards-page"
 uid = "0fc6c198-fd63-a750-82f6-062482cea4a393aa6b8c"
+
+[extensions.capabilities]
+api_access = true
 
 [[extensions.targeting]]
 target = "customer-account.page.render"
