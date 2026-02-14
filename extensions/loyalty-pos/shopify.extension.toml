@@ -1,0 +1,23 @@
+api_version = "2025-10"
+
+[[extensions]]
+type = "ui_extension"
+name = "Loyalty Credits - POS"
+handle = "loyalty-pos"
+description = "Display customer loyalty balance and credit info on POS."
+
+[[extensions.targeting]]
+target = "pos.home.tile.render"
+module = "./src/Tile.tsx"
+
+[[extensions.targeting]]
+target = "pos.home.modal.render"
+module = "./src/Modal.tsx"
+
+[[extensions.targeting]]
+target = "pos.customer-details.block.render"
+module = "./src/CustomerBlock.tsx"
+
+[[extensions.targeting]]
+target = "pos.purchase.post.block.render"
+module = "./src/PostPurchaseBlock.tsx"

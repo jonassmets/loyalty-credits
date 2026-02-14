@@ -1,0 +1,18 @@
+api_version = "2025-01"
+
+[[extensions]]
+type = "ui_extension"
+name = "Loyalty Credits - Customer Account"
+handle = "loyalty-account"
+
+[[extensions.targeting]]
+target = "customer-account.profile.block.render"
+module = "./src/ProfileBlock.jsx"
+
+[[extensions.targeting]]
+target = "customer-account.order-status.block.render"
+module = "./src/OrderStatusBlock.jsx"
+
+[[extensions.targeting]]
+target = "customer-account.page.render"
+module = "./src/RewardsPage.jsx"

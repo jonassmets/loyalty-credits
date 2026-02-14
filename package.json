@@ -1,0 +1,44 @@
+{
+  "name": "loyalty-credits",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "build": "remix vite:build",
+    "dev": "shopify app dev",
+    "docker-start": "npm run setup && npm run start",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "setup": "prisma generate && prisma migrate deploy",
+    "start": "remix-serve ./build/server/index.js",
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "shopify": "shopify",
+    "prisma": "prisma",
+    "graphql-codegen": "graphql-codegen"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "@react-router/node": "^7.13.0",
+    "@shopify/app-bridge-react": "^4.2.10",
+    "@shopify/polaris": "^13.9.5",
+    "@shopify/shopify-app-react-router": "^1.1.1",
+    "@shopify/shopify-app-session-storage-prisma": "^8.0.1",
+    "isbot": "^5.1.22",
+    "prisma": "^6.4.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.13.0"
+  },
+  "devDependencies": {
+    "@react-router/dev": "^7.13.0",
+    "@shopify/api-codegen-preset": "^1.1.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-tsconfig-paths": "^5.1.4"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

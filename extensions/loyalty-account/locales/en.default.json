@@ -1,0 +1,13 @@
+{
+  "loyaltyPoints": {
+    "one": "You have {{formattedPoints}} loyalty point",
+    "other": "You have {{formattedPoints}} loyalty points"
+  },
+  "balance": "Balance",
+  "totalEarned": "Total earned",
+  "totalSpent": "Total spent",
+  "earningRate": "Earning rate",
+  "viewRewards": "View rewards",
+  "storeCredit": "Store Credit",
+  "loyaltyProgram": "Loyalty Program"
+}

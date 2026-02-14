@@ -1,0 +1,101 @@
+{% comment %}
+  Loyalty Credits Banner Block
+  Lightweight banner showing earn percentage on product/collection pages.
+{% endcomment %}
+
+<div class="loyalty-banner" style="
+  background: {{ block.settings.bg_color }};
+  color: {{ block.settings.text_color }};
+  border-radius: {{ block.settings.border_radius }}px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+">
+  {% if block.settings.show_icon %}
+    <span style="font-size: 20px;">{{ block.settings.icon }}</span>
+  {% endif %}
+
+  <div>
+    <p style="margin: 0; font-size: {{ block.settings.font_size }}px; font-weight: 500;">
+      {{ block.settings.banner_text }}
+    </p>
+
+    {% if block.settings.show_subtext and customer %}
+      {% assign loyalty_balance = customer.metafields.app.loyalty_total_earned.value | default: 0 %}
+      <p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.8;">
+        Your current balance: {{ loyalty_balance | money_without_trailing_zeros }}
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Loyalty Banner",
+  "target": "section",
+  "settings": [
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background color",
+      "default": "#1a1a2e"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "default": 8,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Font size",
+      "min": 12,
+      "max": 20,
+      "step": 1,
+      "default": 14,
+      "unit": "px"
+    },
+    {
+      "type": "text",
+      "id": "banner_text",
+      "label": "Banner text",
+      "default": "Earn up to 10% back in store credit on every purchase!"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_icon",
+      "label": "Show icon",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "icon",
+      "label": "Icon emoji",
+      "default": "⭐"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_subtext",
+      "label": "Show balance for logged-in customers",
+      "default": true
+    }
+  ],
+  "presets": [
+    {
+      "name": "Loyalty Banner"
+    }
+  ]
+}
+{% endschema %}

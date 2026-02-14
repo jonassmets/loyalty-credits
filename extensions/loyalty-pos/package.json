@@ -1,0 +1,9 @@
+{
+  "name": "loyalty-pos",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@shopify/ui-extensions": "2025.10.*",
+    "preact": "^10.25.4"
+  }
+}

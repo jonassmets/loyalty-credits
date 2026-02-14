@@ -1,0 +1,34 @@
+[[extensions]]
+name = "Store credit earned"
+type = "flow_trigger"
+handle = "store-credit-earned"
+description = "Triggered when a customer earns store credit from a purchase."
+
+[settings]
+
+[[settings.fields]]
+type = "customer_reference"
+
+[[settings.fields]]
+type = "number_decimal"
+key = "amount"
+name = "Credit amount"
+description = "The amount of store credit earned"
+
+[[settings.fields]]
+type = "single_line_text"
+key = "order_id"
+name = "Order ID"
+description = "The Shopify order GID that generated this credit"
+
+[[settings.fields]]
+type = "single_line_text"
+key = "tier_name"
+name = "Tier name"
+description = "The loyalty tier of the customer at the time of earning"
+
+[[settings.fields]]
+type = "number_decimal"
+key = "credit_percentage"
+name = "Credit percentage"
+description = "The credit percentage applied to the order"

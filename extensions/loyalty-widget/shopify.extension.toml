@@ -1,0 +1,4 @@
+[[extensions]]
+type = "theme"
+name = "Loyalty Credits Widget"
+handle = "loyalty-widget"

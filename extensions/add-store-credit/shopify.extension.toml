@@ -1,0 +1,25 @@
+[[extensions]]
+name = "Add store credit"
+type = "flow_action"
+handle = "add-store-credit"
+description = "Add store credit (gift card balance) to a customer. Use this with review apps, referral programs, or any automation."
+runtime_url = "/flow-action"
+
+[settings]
+
+[[settings.fields]]
+type = "customer_reference"
+
+[[settings.fields]]
+type = "number_decimal"
+key = "amount"
+name = "Credit amount"
+description = "The amount of store credit to add to the customer"
+required = true
+
+[[settings.fields]]
+type = "single_line_text"
+key = "note"
+name = "Note"
+description = "An optional note describing why the credit was added"
+required = false

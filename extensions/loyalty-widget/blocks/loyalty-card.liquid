@@ -1,0 +1,334 @@
+{% comment %}
+  Loyalty Credits Card Block
+  Displays the customer's store credit balance, tier, and progress.
+  Customizable via theme editor settings.
+{% endcomment %}
+
+{% if customer %}
+  {% assign loyalty_balance = customer.metafields.app.loyalty_total_earned.value | default: 0 %}
+  {% assign loyalty_spent = customer.metafields.app.loyalty_total_spent_amount.value | default: 0 %}
+  {% assign gift_card_id = customer.metafields.app.loyalty_gift_card_id.value %}
+
+  <div class="loyalty-card" style="
+    background: {{ block.settings.bg_color }};
+    color: {{ block.settings.text_color }};
+    border-radius: {{ block.settings.border_radius }}px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  ">
+    {% if block.settings.card_image != blank %}
+      <div class="loyalty-card__bg-image" style="
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 40%;
+        opacity: 0.15;
+        background-image: url('{{ block.settings.card_image | image_url: width: 600 }}');
+        background-size: cover;
+        background-position: center;
+      "></div>
+    {% endif %}
+
+    <div class="loyalty-card__content" style="position: relative; z-index: 1;">
+      <div class="loyalty-card__header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+        <div>
+          <p class="loyalty-card__label" style="
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            opacity: 0.8;
+            margin: 0 0 4px 0;
+            color: {{ block.settings.accent_color }};
+          ">{{ block.settings.heading_text }}</p>
+
+          {% if block.settings.show_tier %}
+            {% if loyalty_spent >= 1000 %}
+              {% assign tier_name = "Level 3" %}
+              {% assign tier_percentage = "10" %}
+            {% elsif loyalty_spent >= 500 %}
+              {% assign tier_name = "Level 2" %}
+              {% assign tier_percentage = "7.5" %}
+            {% else %}
+              {% assign tier_name = "Level 1" %}
+              {% assign tier_percentage = "5" %}
+            {% endif %}
+
+            <h3 class="loyalty-card__tier" style="
+              font-size: 28px;
+              font-weight: 700;
+              margin: 0;
+              line-height: 1.2;
+            ">{{ tier_name }}</h3>
+
+            <p style="font-size: 13px; margin: 4px 0 0 0; opacity: 0.8;">
+              You get {{ tier_percentage }}% Cash Points on full-price purchases
+            </p>
+          {% endif %}
+        </div>
+
+        <div style="text-align: right;">
+          <p class="loyalty-card__balance-label" style="
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            opacity: 0.8;
+            margin: 0 0 4px 0;
+          ">Balance</p>
+          <p class="loyalty-card__balance" style="
+            font-size: 32px;
+            font-weight: 700;
+            margin: 0;
+            line-height: 1;
+            color: {{ block.settings.accent_color }};
+          ">{{ loyalty_balance | money_without_trailing_zeros }}</p>
+        </div>
+      </div>
+
+      {% if block.settings.show_tier %}
+        {% if block.settings.show_progress %}
+          <div class="loyalty-card__progress" style="margin-top: 16px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <div>
+                <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin: 0;">Spent</p>
+                <p style="font-size: 14px; font-weight: 600; margin: 2px 0 0 0;">{{ loyalty_spent | money_without_trailing_zeros }}</p>
+              </div>
+              {% if loyalty_spent < 500 %}
+                <div>
+                  <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin: 0;">To reach Level 2</p>
+                  <p style="font-size: 14px; font-weight: 600; margin: 2px 0 0 0;">{{ 500 | minus: loyalty_spent | money_without_trailing_zeros }}</p>
+                </div>
+              {% elsif loyalty_spent < 1000 %}
+                <div>
+                  <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin: 0;">To reach Level 3</p>
+                  <p style="font-size: 14px; font-weight: 600; margin: 2px 0 0 0;">{{ 1000 | minus: loyalty_spent | money_without_trailing_zeros }}</p>
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="loyalty-card__bar" style="
+              background: rgba(255,255,255,0.2);
+              border-radius: 6px;
+              height: 8px;
+              overflow: hidden;
+              display: flex;
+            ">
+              {% assign progress_1 = loyalty_spent | times: 100 | divided_by: 500 %}
+              {% if progress_1 > 100 %}{% assign progress_1 = 100 %}{% endif %}
+              <div style="
+                width: 33.33%;
+                position: relative;
+              ">
+                <div style="
+                  background: {{ block.settings.accent_color }};
+                  height: 100%;
+                  width: {{ progress_1 }}%;
+                  border-radius: 6px 0 0 6px;
+                "></div>
+              </div>
+
+              {% assign progress_2 = loyalty_spent | minus: 500 | times: 100 | divided_by: 500 %}
+              {% if progress_2 < 0 %}{% assign progress_2 = 0 %}{% endif %}
+              {% if progress_2 > 100 %}{% assign progress_2 = 100 %}{% endif %}
+              <div style="
+                width: 33.33%;
+                position: relative;
+              ">
+                <div style="
+                  background: {{ block.settings.accent_color }};
+                  height: 100%;
+                  width: {{ progress_2 }}%;
+                "></div>
+              </div>
+
+              {% assign progress_3 = loyalty_spent | minus: 1000 | times: 100 | divided_by: 1000 %}
+              {% if progress_3 < 0 %}{% assign progress_3 = 0 %}{% endif %}
+              {% if progress_3 > 100 %}{% assign progress_3 = 100 %}{% endif %}
+              <div style="
+                width: 33.34%;
+                position: relative;
+              ">
+                <div style="
+                  background: {{ block.settings.accent_color }};
+                  height: 100%;
+                  width: {{ progress_3 }}%;
+                  border-radius: 0 6px 6px 0;
+                "></div>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+              <div style="width: 33.33%;">
+                <p style="font-size: 11px; font-weight: 600; margin: 0;">Level 1</p>
+                <p style="font-size: 11px; opacity: 0.7; margin: 0;">5%</p>
+              </div>
+              <div style="width: 33.33%; text-align: center;">
+                <p style="font-size: 11px; font-weight: 600; margin: 0;">Level 2</p>
+                <p style="font-size: 11px; opacity: 0.7; margin: 0;">7.5%</p>
+              </div>
+              <div style="width: 33.34%; text-align: right;">
+                <p style="font-size: 11px; font-weight: 600; margin: 0;">Level 3</p>
+                <p style="font-size: 11px; opacity: 0.7; margin: 0;">10%</p>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      {% endif %}
+
+      {% if block.settings.show_link and block.settings.link_text != blank %}
+        <div style="margin-top: 16px;">
+          <a href="{{ block.settings.link_url }}" style="
+            color: {{ block.settings.accent_color }};
+            font-size: 13px;
+            text-decoration: underline;
+          ">{{ block.settings.link_text }}</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+{% else %}
+  {% if block.settings.show_guest_message %}
+    <div class="loyalty-card loyalty-card--guest" style="
+      background: {{ block.settings.bg_color }};
+      color: {{ block.settings.text_color }};
+      border-radius: {{ block.settings.border_radius }}px;
+      padding: 24px;
+      text-align: center;
+    ">
+      <h3 style="font-size: 20px; font-weight: 700; margin: 0 0 8px 0;">
+        {{ block.settings.guest_heading }}
+      </h3>
+      <p style="font-size: 14px; opacity: 0.8; margin: 0 0 16px 0;">
+        {{ block.settings.guest_description }}
+      </p>
+      <a href="/account/login" style="
+        display: inline-block;
+        background: {{ block.settings.accent_color }};
+        color: {{ block.settings.bg_color }};
+        padding: 10px 24px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+      ">Sign in</a>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% schema %}
+{
+  "name": "Loyalty Card",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background color",
+      "default": "#1a1a2e"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#00e676"
+    },
+    {
+      "type": "header",
+      "content": "Layout"
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "default": 12,
+      "unit": "px"
+    },
+    {
+      "type": "image_picker",
+      "id": "card_image",
+      "label": "Background image"
+    },
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    {
+      "type": "text",
+      "id": "heading_text",
+      "label": "Heading text",
+      "default": "Cash Points"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_tier",
+      "label": "Show loyalty tier",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_progress",
+      "label": "Show tier progress bar",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_link",
+      "label": "Show link",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "link_text",
+      "label": "Link text",
+      "default": "How to earn Cash Points."
+    },
+    {
+      "type": "url",
+      "id": "link_url",
+      "label": "Link URL"
+    },
+    {
+      "type": "header",
+      "content": "Guest message"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_guest_message",
+      "label": "Show message for non-logged-in visitors",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "guest_heading",
+      "label": "Guest heading",
+      "default": "Join our Loyalty Program"
+    },
+    {
+      "type": "text",
+      "id": "guest_description",
+      "label": "Guest description",
+      "default": "Earn store credit on every purchase. Sign in to view your balance."
+    }
+  ],
+  "presets": [
+    {
+      "name": "Loyalty Card"
+    }
+  ]
+}
+{% endschema %}
