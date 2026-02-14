@@ -1,5 +1,6 @@
 [[extensions]]
 name = "Store credit earned"
+uid = "08d1d01d-3c6c-ec41-ac68-38bf11dfb1d6e22bf66f"
 type = "flow_trigger"
 handle = "store-credit-earned"
 description = "Triggered when a customer earns store credit from a purchase."
@@ -16,19 +17,19 @@ name = "Credit amount"
 description = "The amount of store credit earned"
 
 [[settings.fields]]
-type = "single_line_text"
-key = "order_id"
+type = "single_line_text_field"
+key = "orderId"
 name = "Order ID"
 description = "The Shopify order GID that generated this credit"
 
 [[settings.fields]]
-type = "single_line_text"
-key = "tier_name"
+type = "single_line_text_field"
+key = "tierName"
 name = "Tier name"
 description = "The loyalty tier of the customer at the time of earning"
 
 [[settings.fields]]
 type = "number_decimal"
-key = "credit_percentage"
+key = "creditPercentage"
 name = "Credit percentage"
 description = "The credit percentage applied to the order"

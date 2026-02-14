@@ -1,6 +1,6 @@
 name = "Loyalty Credits"
 client_id = "8183b88253a2edcbaf14c571a213b031"
-application_url = "https://localhost"
+application_url = "https://loyalty-credits.onrender.com"
 embedded = true
 
 [pos]
@@ -10,7 +10,7 @@ embedded = true
 scopes = "read_orders,write_orders,read_customers,write_customers,read_gift_cards,write_gift_cards"
 
 [auth]
-redirect_urls = [ "https://localhost/auth/callback" ]
+redirect_urls = [ "https://loyalty-credits.onrender.com/auth/callback" ]
 
 [webhooks]
 api_version = "2025-01"
@@ -19,21 +19,4 @@ api_version = "2025-01"
   topics = [ "app/uninstalled" ]
   uri = "/webhooks"
 
-  [[webhooks.subscriptions]]
-  topics = [ "orders/paid" ]
-  uri = "/webhooks"
 
-  [[webhooks.subscriptions]]
-  topics = [ "customers/data_request" ]
-  uri = "/webhooks"
-  compliance_topics = [ "customers/data_request" ]
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/redact" ]
-  uri = "/webhooks"
-  compliance_topics = [ "customers/redact" ]
-
-  [[webhooks.subscriptions]]
-  topics = [ "shop/redact" ]
-  uri = "/webhooks"
-  compliance_topics = [ "shop/redact" ]

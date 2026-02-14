@@ -1,9 +1,10 @@
 [[extensions]]
 name = "Add store credit"
+uid = "ea8caec3-35fc-494f-df29-c552ca8011c4001b2203"
 type = "flow_action"
 handle = "add-store-credit"
 description = "Add store credit (gift card balance) to a customer. Use this with review apps, referral programs, or any automation."
-runtime_url = "/flow-action"
+runtime_url = "https://loyalty-credits.onrender.com/flow-action"
 
 [settings]
 
@@ -18,7 +19,7 @@ description = "The amount of store credit to add to the customer"
 required = true
 
 [[settings.fields]]
-type = "single_line_text"
+type = "single_line_text_field"
 key = "note"
 name = "Note"
 description = "An optional note describing why the credit was added"
