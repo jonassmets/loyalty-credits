@@ -7,7 +7,7 @@ embedded = true
 embedded = true
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_customers,write_customers,read_store_credit_accounts,write_store_credit_accounts"
+scopes = "read_orders,write_orders,read_customers,write_customers,read_store_credit_accounts"
 
 [auth]
 redirect_urls = [ "https://loyalty-credits.onrender.com/auth/callback" ]

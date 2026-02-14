@@ -134,7 +134,7 @@
       <p style="font-size: 13px; margin: 0 0 16px; opacity: 0.7;">
         {{ block.settings.tier1_name }}: {{ block.settings.tier1_pct }}% · {{ block.settings.tier2_name }}: {{ block.settings.tier2_pct }}% · {{ block.settings.tier3_name }}: {{ block.settings.tier3_pct }}%
       </p>
-      <a href="/account/login" style="
+      <a href="{{ routes.account_login_url }}" style="
         display: inline-block; background: {{ block.settings.accent_color }}; color: {{ block.settings.bg_color }};
         padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;
       ">Sign in</a>
