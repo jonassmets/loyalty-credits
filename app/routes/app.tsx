@@ -1,5 +1,11 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, Outlet, useLoaderData, useRouteError } from "react-router";
+import {
+  Link,
+  Outlet,
+  useLoaderData,
+  useRouteError,
+  isRouteErrorResponse,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
@@ -27,7 +33,25 @@ export default function App() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+
+  // Handle auth bounce (410) and other expected Shopify responses
+  // The @shopify/shopify-app-react-router boundary expects ErrorResponse/ErrorResponseImpl
+  // but React Router v7 uses RouteErrorResponse, so we handle it directly
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div
+        dangerouslySetInnerHTML={{ __html: error.data || "Handling response" }}
+      />
+    );
+  }
+
+  // For unexpected errors, try the Shopify boundary, then fall back
+  try {
+    return boundary.error(error);
+  } catch {
+    throw error;
+  }
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
