@@ -66,21 +66,47 @@ async function handleOrderPaid(admin: any, shop: string, payload: any) {
   }
 
   try {
+    // ── Write the log FIRST to claim the orderId via unique constraint ──
+    // This prevents the race condition where two concurrent webhooks both
+    // pass the findFirst check before either writes.
+    let logEntry;
+    try {
+      logEntry = await prisma.loyaltyLog.create({
+        data: {
+          shop,
+          customerId,
+          orderId,
+          amount: 0, // placeholder — updated after processing
+          type: "purchase_credit",
+          note: "processing...",
+        },
+      });
+    } catch (createError: any) {
+      // Unique constraint violation = another request already claimed this order
+      if (
+        createError?.code === "P2002" ||
+        createError?.message?.includes("Unique constraint")
+      ) {
+        console.log(`[webhook] Order ${orderId} already claimed by concurrent request, skipping`);
+        return;
+      }
+      throw createError;
+    }
+
     const result = await processOrder(admin, customerId, orderTotal);
 
     if (!result) {
+      // No credit awarded — clean up the placeholder log
+      await prisma.loyaltyLog.delete({ where: { id: logEntry.id } });
       console.log("[webhook] No credit awarded (program disabled or zero credit)");
       return;
     }
 
-    // Log the credit
-    await prisma.loyaltyLog.create({
+    // Update the placeholder with the real data
+    await prisma.loyaltyLog.update({
+      where: { id: logEntry.id },
       data: {
-        shop,
-        customerId,
-        orderId,
         amount: result.creditAwarded,
-        type: "purchase_credit",
         note: `${result.tier.creditPercentage}% of ${orderTotal} (${result.tier.name} tier, 12m spend: ${result.rollingSpend})`,
       },
     });

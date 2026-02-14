@@ -37,6 +37,7 @@ model LoyaltyLog {
   note       String?
   createdAt  DateTime @default(now())
 
+  @@unique([shop, orderId, type], name: "unique_order_credit")
   @@index([shop, customerId])
   @@index([shop, orderId])
 }
