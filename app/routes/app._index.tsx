@@ -24,9 +24,20 @@ import { DEFAULT_CONFIG } from "../loyalty.shared";
 import type { LoyaltyConfig, LoyaltyTier } from "../loyalty.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const config = await getLoyaltyConfig(admin);
-  return { config };
+  try {
+    const { admin } = await authenticate.admin(request);
+    const config = await getLoyaltyConfig(admin);
+    return { config };
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    (globalThis as any).__lastAppError = {
+      message: (error as Error).message,
+      stack: (error as Error).stack?.split("\n").slice(0, 8),
+      source: "app._index.tsx loader",
+      time: new Date().toISOString(),
+    };
+    throw error;
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
