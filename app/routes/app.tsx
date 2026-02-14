@@ -20,18 +20,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     await authenticate.admin(request);
   } catch (error) {
-    if (error instanceof Response) {
-      throw error; // Re-throw Response objects (410 bounce, redirects, etc.)
-    }
-    // Store the error for debugging
+    if (error instanceof Response) throw error;
     (globalThis as any).__lastAppError = {
       message: (error as Error).message,
       stack: (error as Error).stack?.split("\n").slice(0, 8),
+      source: "app.tsx loader",
       time: new Date().toISOString(),
     };
     throw error;
   }
-
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
@@ -52,9 +49,6 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
 
-  // Handle auth bounce (410) and other expected Shopify responses
-  // The @shopify/shopify-app-react-router boundary expects ErrorResponse/ErrorResponseImpl
-  // but React Router v7 uses RouteErrorResponse, so we handle it directly
   if (isRouteErrorResponse(error)) {
     return (
       <div
@@ -63,14 +57,20 @@ export function ErrorBoundary() {
     );
   }
 
-  // For unexpected errors, try the Shopify boundary, then fall back
-  try {
-    return boundary.error(error);
-  } catch {
-    throw error;
-  }
+  // Show error details directly — don't use boundary.error() which re-throws
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    <div style={{ padding: "2rem", fontFamily: "system-ui" }}>
+      <h1>App Error</h1>
+      <pre style={{ background: "#fee", padding: "1rem" }}>{message}</pre>
+    </div>
+  );
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
-  return boundary.headers(headersArgs);
+  try {
+    return boundary.headers(headersArgs);
+  } catch {
+    return headersArgs.parentHeaders;
+  }
 };
