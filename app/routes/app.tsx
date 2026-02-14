@@ -27,8 +27,9 @@ export default function App() {
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <PolarisAppProvider i18n={polarisENTranslations}>
         <ui-nav-menu>
-          <Link to="/app" rel="home">Home</Link>
-          <Link to="/app/customers">Customers</Link>
+          <Link to="/app" rel="home">Dashboard</Link>
+          <Link to="/app/tiers">Tiers</Link>
+          <Link to="/app/settings">Settings</Link>
         </ui-nav-menu>
         <Outlet />
       </PolarisAppProvider>
@@ -39,16 +40,12 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
 
-  // Handle auth bounce (410) and other Shopify responses
   if (isRouteErrorResponse(error)) {
     return (
-      <div
-        dangerouslySetInnerHTML={{ __html: error.data || "Handling response" }}
-      />
+      <div dangerouslySetInnerHTML={{ __html: error.data || "" }} />
     );
   }
 
-  // Show error details instead of crashing SSR
   const message = error instanceof Error ? error.message : String(error);
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui" }}>

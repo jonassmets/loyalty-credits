@@ -1,6 +1,5 @@
-import { useState, useCallback } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useActionData, useLoaderData, useNavigation, useSubmit } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
+import { useLoaderData, Link } from "react-router";
 import {
   Badge,
   Banner,
@@ -8,304 +7,181 @@ import {
   Box,
   Button,
   Card,
-  Checkbox,
   Divider,
+  Icon,
   InlineGrid,
   InlineStack,
   Layout,
   Page,
-  Select,
   Text,
-  TextField,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { getLoyaltyConfig, saveLoyaltyConfig } from "../loyalty.server";
-import { DEFAULT_CONFIG } from "../loyalty.shared";
-import type { LoyaltyConfig, LoyaltyTier } from "../loyalty.shared";
+import { getSettings } from "../loyalty.server";
+import { DEFAULT_SETTINGS } from "../loyalty.shared";
+import type { LoyaltySettings } from "../loyalty.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   try {
-    const config = await getLoyaltyConfig(admin);
-    return { config };
+    const settings = await getSettings(admin);
+    return { settings };
   } catch (e) {
-    console.error("[app._index] getLoyaltyConfig failed, using defaults:", e);
-    return { config: DEFAULT_CONFIG };
+    console.error("[dashboard] Failed to load settings:", e);
+    return { settings: DEFAULT_SETTINGS };
   }
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const configRaw = formData.get("config");
-
-  if (typeof configRaw !== "string") {
-    return { success: false, error: "Invalid form data" };
-  }
-
-  try {
-    const config: LoyaltyConfig = JSON.parse(configRaw);
-    await saveLoyaltyConfig(admin, config);
-    return { success: true, error: null };
-  } catch (error) {
-    return { success: false, error: "Failed to save configuration" };
-  }
-};
-
-export default function Index() {
-  const { config: savedConfig } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
-  const submit = useSubmit();
-  const isLoading = navigation.state === "submitting";
-
-  const [config, setConfig] = useState<LoyaltyConfig>(savedConfig || DEFAULT_CONFIG);
-
-  const handlePercentageChange = useCallback(
-    (value: string) => {
-      setConfig((prev) => ({
-        ...prev,
-        creditPercentage: parseFloat(value),
-      }));
-    },
-    [],
-  );
-
-  const handleTierToggle = useCallback(
-    (checked: boolean) => {
-      setConfig((prev) => ({
-        ...prev,
-        tierEnabled: checked,
-      }));
-    },
-    [],
-  );
-
-  const handleTierChange = useCallback(
-    (index: number, field: keyof LoyaltyTier, value: string) => {
-      setConfig((prev) => {
-        const tiers = [...prev.tiers];
-        tiers[index] = {
-          ...tiers[index],
-          [field]: field === "name" ? value : parseFloat(value) || 0,
-        };
-        return { ...prev, tiers };
-      });
-    },
-    [],
-  );
-
-  const addTier = useCallback(() => {
-    setConfig((prev) => ({
-      ...prev,
-      tiers: [
-        ...prev.tiers,
-        {
-          name: `Level ${prev.tiers.length + 1}`,
-          minSpent: 0,
-          creditPercentage: 5,
-        },
-      ],
-    }));
-  }, []);
-
-  const removeTier = useCallback((index: number) => {
-    setConfig((prev) => ({
-      ...prev,
-      tiers: prev.tiers.filter((_, i) => i !== index),
-    }));
-  }, []);
-
-  const handleSave = useCallback(() => {
-    const formData = new FormData();
-    formData.set("config", JSON.stringify(config));
-    submit(formData, { method: "post" });
-  }, [config, submit]);
-
-  const percentageOptions = [
-    { label: "1%", value: "1" },
-    { label: "2%", value: "2" },
-    { label: "3%", value: "3" },
-    { label: "5%", value: "5" },
-    { label: "7.5%", value: "7.5" },
-    { label: "10%", value: "10" },
-    { label: "15%", value: "15" },
-  ];
+export default function Dashboard() {
+  const { settings } = useLoaderData<typeof loader>();
 
   return (
     <Page title="Loyalty Credits">
       <BlockStack gap="500">
-        {actionData?.success && (
-          <Banner
-            title="Settings saved successfully"
-            tone="success"
-            onDismiss={() => {}}
-          />
-        )}
-        {actionData?.error && (
-          <Banner title={actionData.error} tone="critical" />
+        {/* Status banner */}
+        {settings.enabled ? (
+          <Banner title="Your loyalty program is active" tone="success">
+            <p>
+              Customers earn store credit on every purchase based on their
+              spending tier.
+            </p>
+          </Banner>
+        ) : (
+          <Banner title="Your loyalty program is disabled" tone="warning">
+            <p>
+              Enable the program in Settings to start rewarding customers with
+              store credit.
+            </p>
+          </Banner>
         )}
 
         <Layout>
+          {/* Tier overview */}
           <Layout.Section>
             <Card>
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center">
                   <Text variant="headingMd" as="h2">
-                    Store Credit Settings
+                    Spending Tiers
                   </Text>
-                  <Badge tone="success">Active</Badge>
+                  <Link to="/app/tiers">
+                    <Button variant="plain">Edit tiers</Button>
+                  </Link>
                 </InlineStack>
 
                 <Text variant="bodyMd" as="p" tone="subdued">
-                  Configure how much store credit customers earn on purchases.
-                  Credit is issued as a gift card that works at checkout and POS.
+                  Customers move up tiers as they spend more. Higher tiers earn
+                  more store credit per purchase.
                 </Text>
 
                 <Divider />
 
-                <Select
-                  label="Credit percentage on purchases"
-                  options={percentageOptions}
-                  value={config.creditPercentage.toString()}
-                  onChange={handlePercentageChange}
-                  helpText="Customers earn this percentage of their order total as store credit."
-                />
-              </BlockStack>
-            </Card>
-          </Layout.Section>
+                <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                  {settings.tiers.map((tier, index) => (
+                    <Card key={index}>
+                      <BlockStack gap="200">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text variant="headingSm" as="h3">
+                            {tier.name}
+                          </Text>
+                          <Badge tone="info">{tier.creditPercentage}%</Badge>
+                        </InlineStack>
+                        <Text variant="bodyMd" as="p" tone="subdued">
+                          {tier.maxSpend
+                            ? `${settings.currencyCode} ${tier.minSpend} – ${tier.maxSpend}`
+                            : `${settings.currencyCode} ${tier.minSpend}+`}
+                        </Text>
+                      </BlockStack>
+                    </Card>
+                  ))}
+                </InlineGrid>
 
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">
-                  Loyalty Tiers
-                </Text>
-
-                <Text variant="bodyMd" as="p" tone="subdued">
-                  Enable tiers to reward your best customers with higher credit
-                  percentages based on their total spending.
-                </Text>
-
-                <Checkbox
-                  label="Enable loyalty tiers"
-                  checked={config.tierEnabled}
-                  onChange={handleTierToggle}
-                />
-
-                {config.tierEnabled && (
-                  <BlockStack gap="400">
-                    <Divider />
-                    {config.tiers.map((tier, index) => (
-                      <Card key={index}>
-                        <BlockStack gap="300">
-                          <InlineStack
-                            align="space-between"
-                            blockAlign="center"
-                          >
-                            <Badge>
-                              {tier.name || `Level ${index + 1}`}
-                            </Badge>
-                            {config.tiers.length > 1 && (
-                              <Button
-                                variant="plain"
-                                tone="critical"
-                                onClick={() => removeTier(index)}
-                              >
-                                Remove
-                              </Button>
-                            )}
-                          </InlineStack>
-
-                          <InlineGrid columns={3} gap="300">
-                            <TextField
-                              label="Tier name"
-                              value={tier.name}
-                              onChange={(val) =>
-                                handleTierChange(index, "name", val)
-                              }
-                              autoComplete="off"
-                            />
-                            <TextField
-                              label="Min. spent (EUR)"
-                              type="number"
-                              value={tier.minSpent.toString()}
-                              onChange={(val) =>
-                                handleTierChange(index, "minSpent", val)
-                              }
-                              autoComplete="off"
-                            />
-                            <TextField
-                              label="Credit %"
-                              type="number"
-                              value={tier.creditPercentage.toString()}
-                              onChange={(val) =>
-                                handleTierChange(
-                                  index,
-                                  "creditPercentage",
-                                  val,
-                                )
-                              }
-                              suffix="%"
-                              autoComplete="off"
-                            />
-                          </InlineGrid>
-                        </BlockStack>
-                      </Card>
-                    ))}
-
-                    <InlineStack align="start">
-                      <Button onClick={addTier}>Add tier</Button>
-                    </InlineStack>
-                  </BlockStack>
+                {settings.tiers.length === 0 && (
+                  <Box padding="400">
+                    <BlockStack gap="200" inlineAlign="center">
+                      <Text variant="bodyMd" as="p" tone="subdued">
+                        No tiers configured yet.
+                      </Text>
+                      <Link to="/app/tiers">
+                        <Button>Set up tiers</Button>
+                      </Link>
+                    </BlockStack>
+                  </Box>
                 )}
               </BlockStack>
             </Card>
           </Layout.Section>
 
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">
-                  How it works
-                </Text>
-                <BlockStack gap="200">
-                  <Text as="p" variant="bodyMd">
-                    1. A customer places an order and pays.
+          {/* Program info */}
+          <Layout.Section variant="oneThird">
+            <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">
+                    Program Details
                   </Text>
-                  <Text as="p" variant="bodyMd">
-                    2. The app calculates store credit based on the order total
-                    and the configured percentage.
+                  <Divider />
+                  <InlineStack align="space-between">
+                    <Text as="span" tone="subdued">Status</Text>
+                    <Badge tone={settings.enabled ? "success" : "warning"}>
+                      {settings.enabled ? "Active" : "Disabled"}
+                    </Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text as="span" tone="subdued">Currency</Text>
+                    <Text as="span" fontWeight="semibold">
+                      {settings.currencyCode}
+                    </Text>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text as="span" tone="subdued">Yearly reset</Text>
+                    <Badge tone={settings.yearlyReset ? "info" : "enabled"}>
+                      {settings.yearlyReset ? "Enabled" : "Disabled"}
+                    </Badge>
+                  </InlineStack>
+                  {settings.yearlyReset && (
+                    <InlineStack align="space-between">
+                      <Text as="span" tone="subdued">Resets in</Text>
+                      <Text as="span" fontWeight="semibold">
+                        {new Date(2026, settings.resetMonth - 1).toLocaleString(
+                          "en",
+                          { month: "long" },
+                        )}
+                      </Text>
+                    </InlineStack>
+                  )}
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">
+                    How it works
                   </Text>
-                  <Text as="p" variant="bodyMd">
-                    3. A gift card is created (or credited) for the customer
-                    with the earned amount.
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    4. The customer can use this gift card at checkout or POS on
-                    their next purchase.
+                  <Divider />
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd">
+                      1. Customer places an order and pays.
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      2. Their total spending determines their tier.
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      3. Store credit is awarded based on the tier percentage.
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      4. Credit is available at checkout automatically.
+                    </Text>
+                  </BlockStack>
+                  <Divider />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Uses Shopify native store credit — works at checkout and POS
+                    without gift cards.
                   </Text>
                 </BlockStack>
-
-                <Divider />
-
-                <Text variant="bodyMd" as="p" tone="subdued">
-                  Store credit also integrates with Shopify Flow. Use the "Add
-                  store credit" action to award credit from review apps, referral
-                  programs, and more.
-                </Text>
-              </BlockStack>
-            </Card>
+              </Card>
+            </BlockStack>
           </Layout.Section>
         </Layout>
-
-        <Box paddingBlockEnd="800">
-          <InlineStack align="end">
-            <Button variant="primary" onClick={handleSave} loading={isLoading}>
-              Save settings
-            </Button>
-          </InlineStack>
-        </Box>
       </BlockStack>
     </Page>
   );

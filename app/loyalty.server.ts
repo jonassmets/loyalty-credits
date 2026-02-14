@@ -1,25 +1,25 @@
 /**
- * Loyalty Credits - Core server-side logic
- * Manages gift card creation/crediting as store credit mechanism
+ * Loyalty Credits - Server-side logic
+ * Uses Shopify native store credit for loyalty rewards.
  */
 
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
-import { DEFAULT_CONFIG } from "./loyalty.shared";
-import type { LoyaltyConfig, LoyaltyTier } from "./loyalty.shared";
+import { DEFAULT_SETTINGS, getTierForSpend, calculateCredit } from "./loyalty.shared";
+import type { LoyaltySettings, LoyaltyTier } from "./loyalty.shared";
 
-export { DEFAULT_CONFIG };
-export type { LoyaltyConfig, LoyaltyTier };
+export { DEFAULT_SETTINGS, getTierForSpend, calculateCredit };
+export type { LoyaltySettings, LoyaltyTier };
 
-// -- Config Management (Shop Metafields) --
+// ── Settings (stored in app metafields) ────────────────────────────
 
-export async function getLoyaltyConfig(
+export async function getSettings(
   admin: AdminApiContext["admin"],
-): Promise<LoyaltyConfig> {
+): Promise<LoyaltySettings> {
   const response = await admin.graphql(
     `#graphql
-    query GetLoyaltyConfig {
+    query GetLoyaltySettings {
       currentAppInstallation {
-        metafield(namespace: "$app", key: "loyalty_config") {
+        metafield(namespace: "$app", key: "loyalty_settings") {
           value
         }
       }
@@ -27,36 +27,30 @@ export async function getLoyaltyConfig(
   );
 
   const data = await response.json();
-  const metafield = data.data?.currentAppInstallation?.metafield;
+  const raw = data.data?.currentAppInstallation?.metafield?.value;
 
-  if (metafield?.value) {
+  if (raw) {
     try {
-      return { ...DEFAULT_CONFIG, ...JSON.parse(metafield.value) };
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
     } catch {
-      return DEFAULT_CONFIG;
+      return DEFAULT_SETTINGS;
     }
   }
-
-  return DEFAULT_CONFIG;
+  return DEFAULT_SETTINGS;
 }
 
-export async function saveLoyaltyConfig(
+export async function saveSettings(
   admin: AdminApiContext["admin"],
-  config: LoyaltyConfig,
-): Promise<void> {
+  settings: LoyaltySettings,
+): Promise<{ success: boolean; error?: string }> {
   const ownerId = await getAppInstallationId(admin);
 
-  await admin.graphql(
+  const response = await admin.graphql(
     `#graphql
-    mutation SaveLoyaltyConfig($metafields: [MetafieldsSetInput!]!) {
+    mutation SaveLoyaltySettings($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
-        metafields {
-          id
-        }
-        userErrors {
-          field
-          message
-        }
+        metafields { id }
+        userErrors { field message }
       }
     }`,
     {
@@ -65,14 +59,22 @@ export async function saveLoyaltyConfig(
           {
             ownerId,
             namespace: "$app",
-            key: "loyalty_config",
+            key: "loyalty_settings",
             type: "json",
-            value: JSON.stringify(config),
+            value: JSON.stringify(settings),
           },
         ],
       },
     },
   );
+
+  const data = await response.json();
+  const errors = data.data?.metafieldsSet?.userErrors;
+
+  if (errors?.length) {
+    return { success: false, error: errors.map((e: any) => e.message).join(", ") };
+  }
+  return { success: true };
 }
 
 async function getAppInstallationId(
@@ -81,247 +83,90 @@ async function getAppInstallationId(
   const response = await admin.graphql(
     `#graphql
     query GetAppInstallation {
-      currentAppInstallation {
-        id
-      }
+      currentAppInstallation { id }
     }`,
   );
   const data = await response.json();
   return data.data!.currentAppInstallation.id;
 }
 
-// -- Gift Card Management (Store Credit) --
-
-export async function findCustomerGiftCard(
-  admin: AdminApiContext["admin"],
-  customerId: string,
-): Promise<{ id: string; balance: string } | null> {
-  // Check customer metafield for stored gift card ID
-  const response = await admin.graphql(
-    `#graphql
-    query GetCustomerGiftCardId($customerId: ID!) {
-      customer(id: $customerId) {
-        metafield(namespace: "$app", key: "loyalty_gift_card_id") {
-          value
-        }
-      }
-    }`,
-    { variables: { customerId } },
-  );
-
-  const data = await response.json();
-  const giftCardId = data.data?.customer?.metafield?.value;
-
-  if (!giftCardId) return null;
-
-  // Verify the gift card still exists and get balance
-  const gcResponse = await admin.graphql(
-    `#graphql
-    query GetGiftCard($id: ID!) {
-      giftCard(id: $id) {
-        id
-        balance {
-          amount
-          currencyCode
-        }
-        enabled
-      }
-    }`,
-    { variables: { id: giftCardId } },
-  );
-
-  const gcData = await gcResponse.json();
-  const giftCard = gcData.data?.giftCard;
-
-  if (!giftCard || !giftCard.enabled) return null;
-
-  return {
-    id: giftCard.id,
-    balance: giftCard.balance.amount,
-  };
-}
+// ── Store Credit ───────────────────────────────────────────────────
 
 export async function addStoreCredit(
   admin: AdminApiContext["admin"],
   customerId: string,
   amount: number,
-  note?: string,
-): Promise<{ giftCardId: string; newBalance: string }> {
-  const existing = await findCustomerGiftCard(admin, customerId);
-
-  if (existing) {
-    // Credit existing gift card
-    const response = await admin.graphql(
-      `#graphql
-      mutation CreditGiftCard($id: ID!, $creditInput: GiftCardCreditInput!) {
-        giftCardCredit(id: $id, creditInput: $creditInput) {
-          giftCard {
-            id
-            balance {
-              amount
-            }
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }`,
-      {
-        variables: {
-          id: existing.id,
-          creditInput: {
-            creditAmount: {
-              amount: amount,
-              currencyCode: "EUR",
-            },
-            note: note || "Loyalty credit earned",
-          },
-        },
-      },
-    );
-
-    const data = await response.json();
-    const giftCard = data.data?.giftCardCredit?.giftCard;
-
-    return {
-      giftCardId: giftCard?.id || existing.id,
-      newBalance: giftCard?.balance?.amount || "0",
-    };
-  } else {
-    // Create new gift card for customer
-    const response = await admin.graphql(
-      `#graphql
-      mutation CreateGiftCard($input: GiftCardCreateInput!) {
-        giftCardCreate(input: $input) {
-          giftCard {
-            id
-            balance {
-              amount
-            }
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }`,
-      {
-        variables: {
-          input: {
-            initialValue: amount.toString(),
-            customerId,
-            note: note || "Loyalty store credit",
-          },
-        },
-      },
-    );
-
-    const data = await response.json();
-    const giftCard = data.data?.giftCardCreate?.giftCard;
-
-    if (giftCard) {
-      // Save gift card ID to customer metafield
-      await admin.graphql(
-        `#graphql
-        mutation SaveCustomerGiftCardId($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields {
-              id
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }`,
-        {
-          variables: {
-            metafields: [
-              {
-                ownerId: customerId,
-                namespace: "$app",
-                key: "loyalty_gift_card_id",
-                type: "single_line_text_field",
-                value: giftCard.id,
-              },
-            ],
-          },
-        },
-      );
-    }
-
-    return {
-      giftCardId: giftCard?.id || "",
-      newBalance: giftCard?.balance?.amount || "0",
-    };
-  }
-}
-
-// -- Customer Metafield Helpers --
-
-export async function updateCustomerLoyaltyMetafields(
-  admin: AdminApiContext["admin"],
-  customerId: string,
-  totalEarned: number,
-  totalSpent: number,
-): Promise<void> {
-  await admin.graphql(
+  currencyCode: string = "EUR",
+): Promise<{ success: boolean; balance?: string; error?: string }> {
+  const response = await admin.graphql(
     `#graphql
-    mutation UpdateCustomerLoyalty($metafields: [MetafieldsSetInput!]!) {
-      metafieldsSet(metafields: $metafields) {
-        metafields {
-          id
+    mutation CreditStoreCredit($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
+      storeCreditAccountCredit(id: $id, creditInput: $creditInput) {
+        storeCreditAccountTransaction {
+          amount { amount currencyCode }
+          balanceAfterTransaction { amount currencyCode }
         }
-        userErrors {
-          field
-          message
-        }
+        userErrors { field message }
       }
     }`,
     {
       variables: {
-        metafields: [
-          {
-            ownerId: customerId,
-            namespace: "$app",
-            key: "loyalty_total_earned",
-            type: "number_decimal",
-            value: totalEarned.toString(),
+        id: customerId,
+        creditInput: {
+          creditAmount: {
+            amount: amount.toFixed(2),
+            currencyCode,
           },
-          {
-            ownerId: customerId,
-            namespace: "$app",
-            key: "loyalty_total_spent_amount",
-            type: "number_decimal",
-            value: totalSpent.toString(),
-          },
-        ],
+        },
       },
     },
   );
+
+  const data = await response.json();
+  const result = data.data?.storeCreditAccountCredit;
+  const errors = result?.userErrors;
+
+  if (errors?.length) {
+    return { success: false, error: errors.map((e: any) => e.message).join(", ") };
+  }
+
+  return {
+    success: true,
+    balance: result?.storeCreditAccountTransaction?.balanceAfterTransaction?.amount,
+  };
+}
+
+// ── Customer Loyalty Data (metafields) ─────────────────────────────
+
+export interface CustomerLoyaltyData {
+  totalSpent: number;
+  totalEarned: number;
+  periodSpent: number;
+  storeCreditBalance: string | null;
 }
 
 export async function getCustomerLoyaltyData(
   admin: AdminApiContext["admin"],
   customerId: string,
-): Promise<{
-  totalEarned: number;
-  totalSpent: number;
-  giftCardId: string | null;
-}> {
+): Promise<CustomerLoyaltyData> {
   const response = await admin.graphql(
     `#graphql
     query GetCustomerLoyaltyData($customerId: ID!) {
       customer(id: $customerId) {
+        totalSpent: metafield(namespace: "$app", key: "loyalty_total_spent") {
+          value
+        }
         totalEarned: metafield(namespace: "$app", key: "loyalty_total_earned") {
           value
         }
-        totalSpent: metafield(namespace: "$app", key: "loyalty_total_spent_amount") {
+        periodSpent: metafield(namespace: "$app", key: "loyalty_period_spent") {
           value
         }
-        giftCardId: metafield(namespace: "$app", key: "loyalty_gift_card_id") {
-          value
+        storeCreditAccounts(first: 1) {
+          nodes {
+            id
+            balance { amount currencyCode }
+          }
         }
       }
     }`,
@@ -330,44 +175,105 @@ export async function getCustomerLoyaltyData(
 
   const data = await response.json();
   const customer = data.data?.customer;
+  const account = customer?.storeCreditAccounts?.nodes?.[0];
 
   return {
-    totalEarned: parseFloat(customer?.totalEarned?.value || "0"),
     totalSpent: parseFloat(customer?.totalSpent?.value || "0"),
-    giftCardId: customer?.giftCardId?.value || null,
+    totalEarned: parseFloat(customer?.totalEarned?.value || "0"),
+    periodSpent: parseFloat(customer?.periodSpent?.value || "0"),
+    storeCreditBalance: account?.balance?.amount ?? null,
   };
 }
 
-// -- Tier Calculation --
+export async function updateCustomerSpending(
+  admin: AdminApiContext["admin"],
+  customerId: string,
+  orderAmount: number,
+  creditEarned: number,
+): Promise<void> {
+  // Get current values
+  const current = await getCustomerLoyaltyData(admin, customerId);
 
-export function calculateTier(
-  config: LoyaltyConfig,
-  totalSpent: number,
-): LoyaltyTier {
-  if (!config.tierEnabled || config.tiers.length === 0) {
-    return {
-      name: "Standard",
-      minSpent: 0,
-      creditPercentage: config.creditPercentage,
-    };
-  }
-
-  const sortedTiers = [...config.tiers].sort(
-    (a, b) => b.minSpent - a.minSpent,
+  await admin.graphql(
+    `#graphql
+    mutation UpdateCustomerLoyalty($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields { id }
+        userErrors { field message }
+      }
+    }`,
+    {
+      variables: {
+        metafields: [
+          {
+            ownerId: customerId,
+            namespace: "$app",
+            key: "loyalty_total_spent",
+            type: "number_decimal",
+            value: (current.totalSpent + orderAmount).toString(),
+          },
+          {
+            ownerId: customerId,
+            namespace: "$app",
+            key: "loyalty_total_earned",
+            type: "number_decimal",
+            value: (current.totalEarned + creditEarned).toString(),
+          },
+          {
+            ownerId: customerId,
+            namespace: "$app",
+            key: "loyalty_period_spent",
+            type: "number_decimal",
+            value: (current.periodSpent + orderAmount).toString(),
+          },
+        ],
+      },
+    },
   );
-
-  for (const tier of sortedTiers) {
-    if (totalSpent >= tier.minSpent) {
-      return tier;
-    }
-  }
-
-  return sortedTiers[sortedTiers.length - 1];
 }
 
-export function calculateCreditAmount(
+// ── Order Processing ───────────────────────────────────────────────
+
+/**
+ * Process a paid order: calculate tier, award store credit, update stats.
+ */
+export async function processOrder(
+  admin: AdminApiContext["admin"],
+  customerId: string,
   orderTotal: number,
-  creditPercentage: number,
-): number {
-  return Math.round(orderTotal * (creditPercentage / 100) * 100) / 100;
+): Promise<{ creditAwarded: number; tier: LoyaltyTier } | null> {
+  const settings = await getSettings(admin);
+
+  if (!settings.enabled || settings.tiers.length === 0) {
+    return null;
+  }
+
+  // Use period spend for tier calculation (respects yearly reset)
+  const customerData = await getCustomerLoyaltyData(admin, customerId);
+  const spendForTier = settings.yearlyReset
+    ? customerData.periodSpent
+    : customerData.totalSpent;
+
+  const tier = getTierForSpend(settings.tiers, spendForTier);
+  const creditAmount = calculateCredit(orderTotal, tier.creditPercentage);
+
+  if (creditAmount <= 0) return null;
+
+  // Award store credit
+  const result = await addStoreCredit(
+    admin,
+    customerId,
+    creditAmount,
+    settings.currencyCode,
+  );
+
+  if (!result.success) {
+    console.error("[loyalty] Failed to award store credit:", result.error);
+    return null;
+  }
+
+  // Update customer spending metafields
+  await updateCustomerSpending(admin, customerId, orderTotal, creditAmount);
+
+  return { creditAwarded: creditAmount, tier };
 }
