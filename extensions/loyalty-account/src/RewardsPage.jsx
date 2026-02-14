@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 // @ts-nocheck
 import '@shopify/ui-extensions/preact';
 import {render} from 'preact';
