@@ -10,12 +10,27 @@ export interface LoyaltyTier {
   creditPercentage: number;
 }
 
+export interface BonusSettings {
+  referralEnabled: boolean;
+  referralAmount: number; // fixed credit for referrer
+  referralNewCustomerAmount: number; // fixed credit for new customer
+  milestoneEnabled: boolean;
+  milestones: MilestoneBonus[];
+}
+
+export interface MilestoneBonus {
+  spendThreshold: number; // cumulative spend to trigger
+  bonusAmount: number; // one-time credit award
+  label: string; // e.g. "500 EUR Club"
+}
+
 export interface LoyaltySettings {
   enabled: boolean;
   tiers: LoyaltyTier[];
   yearlyReset: boolean;
   resetMonth: number; // 1 = January, 12 = December
   currencyCode: string;
+  bonuses: BonusSettings;
 }
 
 export const DEFAULT_SETTINGS: LoyaltySettings = {
@@ -28,6 +43,17 @@ export const DEFAULT_SETTINGS: LoyaltySettings = {
   yearlyReset: true,
   resetMonth: 1, // January
   currencyCode: "EUR",
+  bonuses: {
+    referralEnabled: false,
+    referralAmount: 10,
+    referralNewCustomerAmount: 5,
+    milestoneEnabled: false,
+    milestones: [
+      { spendThreshold: 500, bonusAmount: 25, label: "500 Club" },
+      { spendThreshold: 1000, bonusAmount: 50, label: "1000 Club" },
+      { spendThreshold: 2500, bonusAmount: 100, label: "VIP Club" },
+    ],
+  },
 };
 
 export const MONTH_OPTIONS = [

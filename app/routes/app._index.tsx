@@ -12,6 +12,7 @@ import {
   InlineStack,
   Layout,
   Page,
+  ProgressBar,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -31,13 +32,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     settings = DEFAULT_SETTINGS;
   }
 
-  // Fetch stats from LoyaltyLog
+  // Stats
   let stats = {
     totalCreditsAwarded: 0,
     totalTransactions: 0,
     uniqueCustomers: 0,
     last30DaysCredits: 0,
     last30DaysTransactions: 0,
+    avgCreditPerTransaction: 0,
   };
 
   let recentActivity: Array<{
@@ -48,6 +50,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     note: string | null;
     createdAt: string;
   }> = [];
+
+  // Setup checklist
+  const setupChecks = {
+    hasTiers: settings.tiers.length > 0,
+    isEnabled: settings.enabled,
+    hasWebhook: true, // Assume registered if app is installed
+  };
 
   try {
     const thirtyDaysAgo = new Date();
@@ -71,16 +80,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.loyaltyLog.findMany({
         where: { shop: session.shop },
         orderBy: { createdAt: "desc" },
-        take: 10,
+        take: 8,
       }),
     ]);
 
+    const totalAmount = allLogs._sum.amount || 0;
+    const totalCount = allLogs._count;
+
     stats = {
-      totalCreditsAwarded: allLogs._sum.amount || 0,
-      totalTransactions: allLogs._count,
+      totalCreditsAwarded: totalAmount,
+      totalTransactions: totalCount,
       uniqueCustomers: uniqueCount.length,
       last30DaysCredits: recentLogs._sum.amount || 0,
       last30DaysTransactions: recentLogs._count,
+      avgCreditPerTransaction: totalCount > 0 ? totalAmount / totalCount : 0,
     };
 
     recentActivity = recentItems.map((item) => ({
@@ -95,50 +108,117 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[dashboard] Failed to load stats:", e);
   }
 
-  return { settings, stats, recentActivity };
+  return { settings, stats, recentActivity, setupChecks };
 };
 
+function formatType(type: string): string {
+  const map: Record<string, string> = {
+    purchase_credit: "Purchase",
+    manual_credit: "Manual",
+    flow_credit: "Flow",
+    referral_credit: "Referral",
+    birthday_credit: "Birthday",
+  };
+  return map[type] || type.replace(/_/g, " ");
+}
+
 export default function Dashboard() {
-  const { settings, stats, recentActivity } = useLoaderData<typeof loader>();
+  const { settings, stats, recentActivity, setupChecks } =
+    useLoaderData<typeof loader>();
+
+  const allSetUp =
+    setupChecks.hasTiers && setupChecks.isEnabled;
 
   return (
     <Page title="Loyalty Credits">
       <BlockStack gap="500">
-        {/* Status banner */}
+        {/* Setup guide for new installs */}
+        {!allSetUp && (
+          <Card>
+            <BlockStack gap="400">
+              <Text variant="headingMd" as="h2">
+                Getting started
+              </Text>
+              <Text variant="bodyMd" as="p" tone="subdued">
+                Complete these steps to start rewarding your customers:
+              </Text>
+              <Divider />
+              <BlockStack gap="300">
+                <InlineStack gap="300" blockAlign="center">
+                  <Badge tone={setupChecks.hasTiers ? "success" : "attention"}>
+                    {setupChecks.hasTiers ? "Done" : "To do"}
+                  </Badge>
+                  <BlockStack gap="050">
+                    <Text variant="bodyMd" as="p" fontWeight="semibold">
+                      Configure spending tiers
+                    </Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Set up credit percentages for different spending levels
+                    </Text>
+                  </BlockStack>
+                  {!setupChecks.hasTiers && (
+                    <Link to="/app/tiers">
+                      <Button size="slim">Set up</Button>
+                    </Link>
+                  )}
+                </InlineStack>
+
+                <InlineStack gap="300" blockAlign="center">
+                  <Badge tone={setupChecks.isEnabled ? "success" : "attention"}>
+                    {setupChecks.isEnabled ? "Done" : "To do"}
+                  </Badge>
+                  <BlockStack gap="050">
+                    <Text variant="bodyMd" as="p" fontWeight="semibold">
+                      Enable the loyalty program
+                    </Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Activate automatic store credit on orders
+                    </Text>
+                  </BlockStack>
+                  {!setupChecks.isEnabled && (
+                    <Link to="/app/settings">
+                      <Button size="slim">Enable</Button>
+                    </Link>
+                  )}
+                </InlineStack>
+              </BlockStack>
+            </BlockStack>
+          </Card>
+        )}
+
+        {/* Status */}
         {settings.enabled ? (
           <Banner title="Your loyalty program is active" tone="success">
             <p>
-              Customers earn store credit on every purchase based on their
-              spending tier. Credit is delivered via Shopify's native store
-              credit system.
+              Customers earn native Shopify store credit on every purchase.
+              Credit is usable at checkout, on Shop Pay, and at POS.
             </p>
           </Banner>
         ) : (
-          <Banner title="Your loyalty program is paused" tone="warning">
+          <Banner title="Program paused" tone="warning">
             <p>
-              No store credit is being awarded. Go to{" "}
-              <Link to="/app/settings">Settings</Link> to enable the program.
+              No credit is being awarded. Enable it in{" "}
+              <Link to="/app/settings">Settings</Link>.
             </p>
           </Banner>
         )}
 
-        {/* Stats cards */}
+        {/* Stats row */}
         <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
           <Card>
             <BlockStack gap="200">
               <Text variant="bodySm" as="p" tone="subdued">
-                Total Credits Awarded
+                Total Awarded
               </Text>
               <Text variant="headingLg" as="p">
                 {settings.currencyCode}{" "}
                 {stats.totalCreditsAwarded.toFixed(2)}
               </Text>
               <Text variant="bodySm" as="p" tone="subdued">
-                across {stats.totalTransactions} transactions
+                {stats.totalTransactions} transactions
               </Text>
             </BlockStack>
           </Card>
-
           <Card>
             <BlockStack gap="200">
               <Text variant="bodySm" as="p" tone="subdued">
@@ -153,91 +233,190 @@ export default function Dashboard() {
               </Text>
             </BlockStack>
           </Card>
-
           <Card>
             <BlockStack gap="200">
               <Text variant="bodySm" as="p" tone="subdued">
-                Unique Customers
+                Customers
               </Text>
               <Text variant="headingLg" as="p">
                 {stats.uniqueCustomers}
               </Text>
               <Text variant="bodySm" as="p" tone="subdued">
-                customers earned credits
+                earning loyalty credits
               </Text>
             </BlockStack>
           </Card>
-
           <Card>
             <BlockStack gap="200">
               <Text variant="bodySm" as="p" tone="subdued">
-                Active Tiers
+                Avg. Credit
               </Text>
               <Text variant="headingLg" as="p">
-                {settings.tiers.length}
+                {settings.currencyCode}{" "}
+                {stats.avgCreditPerTransaction.toFixed(2)}
               </Text>
               <Text variant="bodySm" as="p" tone="subdued">
-                {settings.tiers.map((t) => t.name).join(", ") || "None configured"}
+                per transaction
               </Text>
             </BlockStack>
           </Card>
         </InlineGrid>
 
         <Layout>
-          {/* Tier overview */}
+          {/* Main content */}
           <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingMd" as="h2">
-                    Spending Tiers
+            <BlockStack gap="400">
+              {/* Tiers overview */}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd" as="h2">
+                      Spending Tiers
+                    </Text>
+                    <Link to="/app/tiers">
+                      <Button variant="plain">Edit tiers</Button>
+                    </Link>
+                  </InlineStack>
+
+                  <Text variant="bodyMd" as="p" tone="subdued">
+                    Customers move up tiers as they spend more and earn
+                    higher credit percentages.
                   </Text>
-                  <Link to="/app/tiers">
-                    <Button variant="plain">Edit tiers</Button>
-                  </Link>
-                </InlineStack>
 
-                <Text variant="bodyMd" as="p" tone="subdued">
-                  Customers move up tiers as they spend more. Higher tiers earn
-                  more store credit per purchase.
-                </Text>
+                  <Divider />
 
-                <Divider />
+                  {settings.tiers.length > 0 ? (
+                    <InlineGrid
+                      columns={{ xs: 1, sm: 2, md: 3 }}
+                      gap="400"
+                    >
+                      {settings.tiers.map((tier, index) => {
+                        const nextTier = settings.tiers
+                          .filter((t) => t.minSpend > tier.minSpend)
+                          .sort((a, b) => a.minSpend - b.minSpend)[0];
+                        const range = nextTier
+                          ? `${settings.currencyCode} ${tier.minSpend} – ${nextTier.minSpend}`
+                          : `${settings.currencyCode} ${tier.minSpend}+`;
 
-                <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
-                  {settings.tiers.map((tier, index) => (
-                    <Card key={index}>
-                      <BlockStack gap="200">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <Text variant="headingSm" as="h3">
-                            {tier.name}
-                          </Text>
-                          <Badge tone="info">{tier.creditPercentage}%</Badge>
-                        </InlineStack>
+                        return (
+                          <Card key={index}>
+                            <BlockStack gap="200">
+                              <InlineStack
+                                align="space-between"
+                                blockAlign="center"
+                              >
+                                <Text variant="headingSm" as="h3">
+                                  {tier.name}
+                                </Text>
+                                <Badge tone="info">
+                                  {tier.creditPercentage}%
+                                </Badge>
+                              </InlineStack>
+                              <Text variant="bodySm" as="p" tone="subdued">
+                                {range}
+                              </Text>
+                              <Text variant="bodySm" as="p">
+                                A {settings.currencyCode} 100 order earns{" "}
+                                {settings.currencyCode}{" "}
+                                {(100 * tier.creditPercentage / 100).toFixed(2)}{" "}
+                                credit
+                              </Text>
+                            </BlockStack>
+                          </Card>
+                        );
+                      })}
+                    </InlineGrid>
+                  ) : (
+                    <Box padding="400">
+                      <BlockStack gap="200" inlineAlign="center">
                         <Text variant="bodyMd" as="p" tone="subdued">
-                          {tier.maxSpend
-                            ? `${settings.currencyCode} ${tier.minSpend} – ${tier.maxSpend}`
-                            : `${settings.currencyCode} ${tier.minSpend}+`}
+                          No tiers configured yet.
                         </Text>
+                        <Link to="/app/tiers">
+                          <Button>Set up tiers</Button>
+                        </Link>
                       </BlockStack>
-                    </Card>
-                  ))}
-                </InlineGrid>
+                    </Box>
+                  )}
+                </BlockStack>
+              </Card>
 
-                {settings.tiers.length === 0 && (
-                  <Box padding="400">
-                    <BlockStack gap="200" inlineAlign="center">
-                      <Text variant="bodyMd" as="p" tone="subdued">
-                        No tiers configured yet.
-                      </Text>
-                      <Link to="/app/tiers">
-                        <Button>Set up tiers</Button>
-                      </Link>
-                    </BlockStack>
-                  </Box>
-                )}
-              </BlockStack>
-            </Card>
+              {/* Quick actions */}
+              <Card>
+                <BlockStack gap="400">
+                  <Text variant="headingMd" as="h2">
+                    Quick Actions
+                  </Text>
+                  <Divider />
+                  <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
+                    <Link to="/app/customers">
+                      <Box
+                        padding="400"
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                      >
+                        <BlockStack gap="100">
+                          <Text variant="headingSm" as="h3">
+                            Search Customers
+                          </Text>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Look up loyalty data, add manual credits
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    </Link>
+                    <Link to="/app/activity">
+                      <Box
+                        padding="400"
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                      >
+                        <BlockStack gap="100">
+                          <Text variant="headingSm" as="h3">
+                            View Activity
+                          </Text>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Transaction history and credit breakdown
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    </Link>
+                    <Link to="/app/tiers">
+                      <Box
+                        padding="400"
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                      >
+                        <BlockStack gap="100">
+                          <Text variant="headingSm" as="h3">
+                            Edit Tiers
+                          </Text>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Adjust spending ranges and credit rates
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    </Link>
+                    <Link to="/app/settings">
+                      <Box
+                        padding="400"
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                      >
+                        <BlockStack gap="100">
+                          <Text variant="headingSm" as="h3">
+                            Settings
+                          </Text>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Program options, currency, yearly reset
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    </Link>
+                  </InlineGrid>
+                </BlockStack>
+              </Card>
+            </BlockStack>
           </Layout.Section>
 
           {/* Sidebar */}
@@ -247,30 +426,38 @@ export default function Dashboard() {
               <Card>
                 <BlockStack gap="300">
                   <Text variant="headingMd" as="h2">
-                    Program Details
+                    Program
                   </Text>
                   <Divider />
                   <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">Status</Text>
+                    <Text as="span" tone="subdued">
+                      Status
+                    </Text>
                     <Badge tone={settings.enabled ? "success" : "warning"}>
                       {settings.enabled ? "Active" : "Paused"}
                     </Badge>
                   </InlineStack>
                   <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">Currency</Text>
+                    <Text as="span" tone="subdued">
+                      Currency
+                    </Text>
                     <Text as="span" fontWeight="semibold">
                       {settings.currencyCode}
                     </Text>
                   </InlineStack>
                   <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">Yearly reset</Text>
+                    <Text as="span" tone="subdued">
+                      Yearly reset
+                    </Text>
                     <Badge tone={settings.yearlyReset ? "info" : "enabled"}>
-                      {settings.yearlyReset ? "Enabled" : "Off"}
+                      {settings.yearlyReset ? "On" : "Off"}
                     </Badge>
                   </InlineStack>
                   {settings.yearlyReset && (
                     <InlineStack align="space-between">
-                      <Text as="span" tone="subdued">Resets in</Text>
+                      <Text as="span" tone="subdued">
+                        Resets in
+                      </Text>
                       <Text as="span" fontWeight="semibold">
                         {new Date(2026, settings.resetMonth - 1).toLocaleString(
                           "en",
@@ -279,12 +466,6 @@ export default function Dashboard() {
                       </Text>
                     </InlineStack>
                   )}
-                  <Divider />
-                  <Link to="/app/settings">
-                    <Button variant="plain" fullWidth>
-                      Manage settings
-                    </Button>
-                  </Link>
                 </BlockStack>
               </Card>
 
@@ -302,19 +483,28 @@ export default function Dashboard() {
                   <Divider />
                   {recentActivity.length > 0 ? (
                     <BlockStack gap="200">
-                      {recentActivity.slice(0, 5).map((item) => (
-                        <Box key={item.id} padding="100">
+                      {recentActivity.map((item) => (
+                        <Box key={item.id} paddingBlockStart="100" paddingBlockEnd="100">
                           <InlineStack align="space-between">
                             <BlockStack gap="050">
-                              <Text variant="bodySm" as="p">
-                                +{settings.currencyCode} {item.amount.toFixed(2)}
-                              </Text>
+                              <InlineStack gap="100" blockAlign="center">
+                                <Text variant="bodySm" as="p" fontWeight="semibold">
+                                  +{settings.currencyCode}{" "}
+                                  {item.amount.toFixed(2)}
+                                </Text>
+                                <Badge tone="info">
+                                  {formatType(item.type)}
+                                </Badge>
+                              </InlineStack>
                               <Text variant="bodySm" as="p" tone="subdued">
-                                {item.note || item.type.replace(/_/g, " ")}
+                                {item.note?.substring(0, 40) || "—"}
                               </Text>
                             </BlockStack>
                             <Text variant="bodySm" as="p" tone="subdued">
-                              {new Date(item.createdAt).toLocaleDateString()}
+                              {new Date(item.createdAt).toLocaleDateString(
+                                "en-GB",
+                                { day: "numeric", month: "short" },
+                              )}
                             </Text>
                           </InlineStack>
                         </Box>
@@ -322,8 +512,8 @@ export default function Dashboard() {
                     </BlockStack>
                   ) : (
                     <Text variant="bodySm" as="p" tone="subdued">
-                      No activity yet. Credits will appear here once customers
-                      start making purchases.
+                      No activity yet. Credits appear here when customers
+                      make purchases.
                     </Text>
                   )}
                 </BlockStack>
@@ -337,27 +527,26 @@ export default function Dashboard() {
                   </Text>
                   <Divider />
                   <BlockStack gap="200">
-                    <Text as="p" variant="bodyMd">
-                      1. Customer places an order and pays.
+                    <Text as="p" variant="bodySm">
+                      1. Customer places an order and pays
                     </Text>
-                    <Text as="p" variant="bodyMd">
-                      2. Their cumulative spending determines their tier.
+                    <Text as="p" variant="bodySm">
+                      2. Their cumulative spending determines their tier
                     </Text>
-                    <Text as="p" variant="bodyMd">
-                      3. Store credit is awarded based on the tier's percentage.
+                    <Text as="p" variant="bodySm">
+                      3. Store credit is awarded based on the tier %
                     </Text>
-                    <Text as="p" variant="bodyMd">
-                      4. Credit appears in their account automatically.
+                    <Text as="p" variant="bodySm">
+                      4. Credit appears in their account instantly
                     </Text>
-                    <Text as="p" variant="bodyMd">
-                      5. They can redeem at checkout or POS.
+                    <Text as="p" variant="bodySm">
+                      5. They redeem at checkout or POS
                     </Text>
                   </BlockStack>
                   <Divider />
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Powered by Shopify native store credit. No gift cards
-                    needed — works seamlessly at checkout, on Shop Pay, and at
-                    POS terminals.
+                    Native Shopify store credit — no gift cards, works
+                    at checkout, Shop Pay, and POS.
                   </Text>
                 </BlockStack>
               </Card>

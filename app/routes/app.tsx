@@ -29,6 +29,7 @@ export default function App() {
         <ui-nav-menu>
           <Link to="/app" rel="home">Dashboard</Link>
           <Link to="/app/tiers">Tiers</Link>
+          <Link to="/app/bonuses">Bonuses</Link>
           <Link to="/app/customers">Customers</Link>
           <Link to="/app/activity">Activity</Link>
           <Link to="/app/settings">Settings</Link>
