@@ -12,13 +12,13 @@ import {
   TextField,
 } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import { login } from "../../app/shopify.server";
+import { login } from "../shopify.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const errors = login(request);
-  return { errors, polarisTranslations: require("@shopify/polaris/locales/en.json") };
+  return { errors };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -27,12 +27,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Auth() {
-  const { polarisTranslations } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const errors = actionData?.errors || {};
 
   return (
-    <AppProvider i18n={polarisTranslations}>
+    <AppProvider i18n={{ Polaris: { Common: { checkbox: "Checkbox" } } }}>
       <Page>
         <Card>
           <Form method="post">

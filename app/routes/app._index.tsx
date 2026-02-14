@@ -19,13 +19,9 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import {
-  getLoyaltyConfig,
-  saveLoyaltyConfig,
-  DEFAULT_CONFIG,
-  type LoyaltyConfig,
-  type LoyaltyTier,
-} from "../loyalty.server";
+import { getLoyaltyConfig, saveLoyaltyConfig } from "../loyalty.server";
+import { DEFAULT_CONFIG } from "../loyalty.shared";
+import type { LoyaltyConfig, LoyaltyTier } from "../loyalty.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
