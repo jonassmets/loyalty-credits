@@ -8,27 +8,15 @@ import {
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import polarisENTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
-// Store last error for debugging via /health?last-error
-(globalThis as any).__lastAppError = null;
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  try {
-    await authenticate.admin(request);
-  } catch (error) {
-    if (error instanceof Response) throw error;
-    (globalThis as any).__lastAppError = {
-      message: (error as Error).message,
-      stack: (error as Error).stack?.split("\n").slice(0, 8),
-      source: "app.tsx loader",
-      time: new Date().toISOString(),
-    };
-    throw error;
-  }
+  await authenticate.admin(request);
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
@@ -37,11 +25,13 @@ export default function App() {
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
-      <ui-nav-menu>
-        <Link to="/app" rel="home">Home</Link>
-        <Link to="/app/customers">Customers</Link>
-      </ui-nav-menu>
-      <Outlet />
+      <PolarisAppProvider i18n={polarisENTranslations}>
+        <ui-nav-menu>
+          <Link to="/app" rel="home">Home</Link>
+          <Link to="/app/customers">Customers</Link>
+        </ui-nav-menu>
+        <Outlet />
+      </PolarisAppProvider>
     </AppProvider>
   );
 }
@@ -49,6 +39,7 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
 
+  // Handle auth bounce (410) and other Shopify responses
   if (isRouteErrorResponse(error)) {
     return (
       <div
@@ -57,12 +48,14 @@ export function ErrorBoundary() {
     );
   }
 
-  // Show error details directly — don't use boundary.error() which re-throws
+  // Show error details instead of crashing SSR
   const message = error instanceof Error ? error.message : String(error);
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui" }}>
-      <h1>App Error</h1>
-      <pre style={{ background: "#fee", padding: "1rem" }}>{message}</pre>
+      <h1>Something went wrong</h1>
+      <pre style={{ background: "#fee", padding: "1rem", borderRadius: "8px" }}>
+        {message}
+      </pre>
     </div>
   );
 }

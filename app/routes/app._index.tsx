@@ -24,9 +24,14 @@ import { DEFAULT_CONFIG } from "../loyalty.shared";
 import type { LoyaltyConfig, LoyaltyTier } from "../loyalty.shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  // Return hardcoded config to test if rendering works
-  return { config: DEFAULT_CONFIG };
+  const { admin } = await authenticate.admin(request);
+  try {
+    const config = await getLoyaltyConfig(admin);
+    return { config };
+  } catch (e) {
+    console.error("[app._index] getLoyaltyConfig failed, using defaults:", e);
+    return { config: DEFAULT_CONFIG };
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
