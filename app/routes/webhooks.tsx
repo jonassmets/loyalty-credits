@@ -46,6 +46,25 @@ async function handleOrderPaid(admin: any, shop: string, payload: any) {
     return;
   }
 
+  if (!orderId) {
+    console.log("[webhook] Skipping order: no order ID");
+    return;
+  }
+
+  // ── Idempotency: skip if we already processed this order ──
+  const existing = await prisma.loyaltyLog.findFirst({
+    where: {
+      shop,
+      orderId,
+      type: "purchase_credit",
+    },
+  });
+
+  if (existing) {
+    console.log(`[webhook] Order ${orderId} already processed, skipping duplicate`);
+    return;
+  }
+
   try {
     const result = await processOrder(admin, customerId, orderTotal);
 
