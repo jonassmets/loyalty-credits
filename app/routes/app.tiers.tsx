@@ -45,13 +45,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const tiers: LoyaltyTier[] = JSON.parse(tiersRaw);
 
     // Validate tiers
+    if (tiers.length === 0) {
+      return { success: false, error: "You need at least one tier" };
+    }
+
     for (let i = 0; i < tiers.length; i++) {
       if (!tiers[i].name?.trim()) {
         return { success: false, error: `Tier ${i + 1} needs a name` };
       }
       if (tiers[i].creditPercentage <= 0 || tiers[i].creditPercentage > 100) {
-        return { success: false, error: `Tier "${tiers[i].name}" has an invalid percentage` };
+        return { success: false, error: `"${tiers[i].name}" needs a valid credit percentage (0.1–100%)` };
       }
+      if (tiers[i].minSpend < 0) {
+        return { success: false, error: `"${tiers[i].name}" minimum spend can't be negative` };
+      }
+    }
+
+    // Check for duplicate min spends
+    const minSpends = tiers.map((t) => t.minSpend);
+    if (new Set(minSpends).size !== minSpends.length) {
+      return { success: false, error: "Each tier must have a unique minimum spend amount" };
     }
 
     // Sort by minSpend and set maxSpend automatically
@@ -103,14 +116,19 @@ export default function Tiers() {
   const addTier = useCallback(() => {
     setTiers((prev) => {
       const lastTier = prev[prev.length - 1];
-      const newMinSpend = lastTier ? (lastTier.maxSpend || lastTier.minSpend + 500) : 0;
+      const newMinSpend = lastTier
+        ? (lastTier.maxSpend || lastTier.minSpend + 500)
+        : 0;
       return [
         ...prev,
         {
           name: `Tier ${prev.length + 1}`,
           minSpend: newMinSpend,
           maxSpend: null,
-          creditPercentage: Math.min((lastTier?.creditPercentage || 5) + 2, 50),
+          creditPercentage: Math.min(
+            (lastTier?.creditPercentage || 5) + 2,
+            50,
+          ),
         },
       ];
     });
@@ -126,7 +144,11 @@ export default function Tiers() {
     submit(formData, { method: "post" });
   }, [tiers, submit]);
 
-  // Sort for display and compute ranges
+  const resetToDefaults = useCallback(() => {
+    setTiers(DEFAULT_SETTINGS.tiers);
+  }, []);
+
+  // Sort for preview
   const sortedTiers = [...tiers].sort((a, b) => a.minSpend - b.minSpend);
 
   return (
@@ -138,26 +160,56 @@ export default function Tiers() {
         onAction: handleSave,
         loading: isSaving,
       }}
+      secondaryActions={[
+        {
+          content: "Reset to defaults",
+          onAction: resetToDefaults,
+          destructive: true,
+        },
+      ]}
     >
       <BlockStack gap="500">
         {actionData?.success && (
-          <Banner title="Tiers saved successfully" tone="success" onDismiss={() => {}} />
+          <Banner
+            title="Tiers saved successfully"
+            tone="success"
+            onDismiss={() => {}}
+          />
         )}
         {actionData?.error && (
           <Banner title={actionData.error} tone="critical" />
         )}
 
+        <Banner tone="info">
+          <p>
+            <strong>How tiers work:</strong> Each tier defines a spending range
+            and the store credit percentage customers earn at that level.
+            When a customer's cumulative spending reaches a tier's minimum, they
+            automatically move up and earn the higher percentage on future orders.
+            {settings.yearlyReset
+              ? " Spending resets yearly, so customers restart from the lowest tier each period."
+              : " Spending never resets — customers keep their tier forever."}
+          </p>
+        </Banner>
+
         <Layout>
           <Layout.Section>
             <Card>
               <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">
-                  Configure your loyalty tiers
-                </Text>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text variant="headingMd" as="h2">
+                    Configure Tiers
+                  </Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    {tiers.length} tier{tiers.length !== 1 ? "s" : ""}
+                  </Text>
+                </InlineStack>
+
                 <Text variant="bodyMd" as="p" tone="subdued">
-                  Define spending ranges and the store credit percentage customers
-                  earn at each level. Tiers are sorted by minimum spend automatically.
-                  The highest tier has no upper limit.
+                  Set the minimum cumulative spend for each tier and the store
+                  credit percentage earned. The first tier should start at 0.
+                  Tiers are sorted automatically by minimum spend. The highest
+                  tier has no upper limit.
                 </Text>
 
                 <Divider />
@@ -168,7 +220,9 @@ export default function Tiers() {
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">
-                            <Badge tone="info">{tier.creditPercentage}% credit</Badge>
+                            <Badge tone="info">
+                              {tier.creditPercentage}% credit
+                            </Badge>
                             <Text variant="headingSm" as="h3">
                               {tier.name || `Tier ${index + 1}`}
                             </Text>
@@ -188,26 +242,36 @@ export default function Tiers() {
                           <TextField
                             label="Tier name"
                             value={tier.name}
-                            onChange={(val) => handleTierChange(index, "name", val)}
+                            onChange={(val) =>
+                              handleTierChange(index, "name", val)
+                            }
                             autoComplete="off"
+                            helpText="Visible to you only"
                           />
                           <TextField
-                            label={`Minimum spend (${settings.currencyCode})`}
+                            label={`Min. spend (${settings.currencyCode})`}
                             type="number"
                             value={tier.minSpend.toString()}
-                            onChange={(val) => handleTierChange(index, "minSpend", val)}
+                            onChange={(val) =>
+                              handleTierChange(index, "minSpend", val)
+                            }
                             autoComplete="off"
                             min={0}
+                            helpText="Cumulative spend to reach this tier"
                           />
                           <TextField
-                            label="Store credit %"
+                            label="Store credit earned"
                             type="number"
                             value={tier.creditPercentage.toString()}
-                            onChange={(val) => handleTierChange(index, "creditPercentage", val)}
+                            onChange={(val) =>
+                              handleTierChange(index, "creditPercentage", val)
+                            }
                             suffix="%"
                             autoComplete="off"
                             min={0.1}
                             max={100}
+                            step={0.5}
+                            helpText="% of order total as credit"
                           />
                         </InlineGrid>
                       </BlockStack>
@@ -223,47 +287,102 @@ export default function Tiers() {
           </Layout.Section>
 
           <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">Preview</Text>
-                <Divider />
-                <Text variant="bodyMd" as="p" tone="subdued">
-                  This is how customers will progress through tiers:
-                </Text>
-                <BlockStack gap="200">
-                  {sortedTiers.map((tier, index) => {
-                    const nextTier = sortedTiers[index + 1];
-                    const range = nextTier
-                      ? `${settings.currencyCode} ${tier.minSpend} – ${nextTier.minSpend}`
-                      : `${settings.currencyCode} ${tier.minSpend}+`;
+            <BlockStack gap="400">
+              {/* Preview */}
+              <Card>
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">
+                    Tier Preview
+                  </Text>
+                  <Divider />
+                  <Text variant="bodyMd" as="p" tone="subdued">
+                    Customer progression through tiers:
+                  </Text>
+                  <BlockStack gap="200">
+                    {sortedTiers.map((tier, index) => {
+                      const nextTier = sortedTiers[index + 1];
+                      const range = nextTier
+                        ? `${settings.currencyCode} ${tier.minSpend} – ${nextTier.minSpend}`
+                        : `${settings.currencyCode} ${tier.minSpend}+`;
 
-                    return (
-                      <Box key={index} padding="200" background="bg-surface-secondary" borderRadius="200">
-                        <InlineStack align="space-between">
-                          <BlockStack gap="050">
-                            <Text variant="headingSm" as="h4">{tier.name}</Text>
-                            <Text variant="bodySm" as="p" tone="subdued">{range}</Text>
-                          </BlockStack>
-                          <Badge tone="success">{tier.creditPercentage}%</Badge>
-                        </InlineStack>
-                      </Box>
-                    );
-                  })}
+                      return (
+                        <Box
+                          key={index}
+                          padding="300"
+                          background="bg-surface-secondary"
+                          borderRadius="200"
+                        >
+                          <InlineStack align="space-between">
+                            <BlockStack gap="050">
+                              <Text variant="headingSm" as="h4">
+                                {tier.name}
+                              </Text>
+                              <Text variant="bodySm" as="p" tone="subdued">
+                                {range}
+                              </Text>
+                            </BlockStack>
+                            <Badge tone="success">
+                              {tier.creditPercentage}%
+                            </Badge>
+                          </InlineStack>
+                        </Box>
+                      );
+                    })}
+                  </BlockStack>
                 </BlockStack>
+              </Card>
 
-                {sortedTiers.length > 0 && (
-                  <>
-                    <Divider />
-                    <Text variant="bodySm" as="p" tone="subdued">
-                      Example: A customer who has spent {settings.currencyCode}{" "}
-                      {sortedTiers[sortedTiers.length - 1]?.minSpend || 1000}+ earns{" "}
-                      {sortedTiers[sortedTiers.length - 1]?.creditPercentage || 10}%
-                      store credit on every order.
-                    </Text>
-                  </>
-                )}
-              </BlockStack>
-            </Card>
+              {/* Example calculation */}
+              <Card>
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">
+                    Example
+                  </Text>
+                  <Divider />
+                  {sortedTiers.length > 0 && (
+                    <BlockStack gap="200">
+                      <Text as="p" variant="bodyMd">
+                        A new customer places a {settings.currencyCode} 100 order:
+                      </Text>
+                      <Box
+                        padding="200"
+                        background="bg-surface-success"
+                        borderRadius="200"
+                      >
+                        <Text as="p" variant="bodyMd">
+                          Earns {settings.currencyCode}{" "}
+                          {(100 * (sortedTiers[0]?.creditPercentage || 5) / 100).toFixed(2)}{" "}
+                          store credit ({sortedTiers[0]?.name} tier,{" "}
+                          {sortedTiers[0]?.creditPercentage}%)
+                        </Text>
+                      </Box>
+
+                      {sortedTiers.length > 1 && (
+                        <>
+                          <Text as="p" variant="bodyMd" tone="subdued">
+                            After spending {settings.currencyCode}{" "}
+                            {sortedTiers[1]?.minSpend}+ total, the same{" "}
+                            {settings.currencyCode} 100 order earns:
+                          </Text>
+                          <Box
+                            padding="200"
+                            background="bg-surface-success"
+                            borderRadius="200"
+                          >
+                            <Text as="p" variant="bodyMd">
+                              {settings.currencyCode}{" "}
+                              {(100 * (sortedTiers[1]?.creditPercentage || 7) / 100).toFixed(2)}{" "}
+                              store credit ({sortedTiers[1]?.name} tier,{" "}
+                              {sortedTiers[1]?.creditPercentage}%)
+                            </Text>
+                          </Box>
+                        </>
+                      )}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Card>
+            </BlockStack>
           </Layout.Section>
         </Layout>
       </BlockStack>

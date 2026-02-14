@@ -24,11 +24,13 @@ export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
 
   return (
-    <AppProvider isEmbeddedApp apiKey={apiKey}>
+    <AppProvider embedded apiKey={apiKey}>
       <PolarisAppProvider i18n={polarisENTranslations}>
         <ui-nav-menu>
           <Link to="/app" rel="home">Dashboard</Link>
           <Link to="/app/tiers">Tiers</Link>
+          <Link to="/app/customers">Customers</Link>
+          <Link to="/app/activity">Activity</Link>
           <Link to="/app/settings">Settings</Link>
         </ui-nav-menu>
         <Outlet />
