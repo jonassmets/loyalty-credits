@@ -36,9 +36,9 @@ export interface LoyaltySettings {
 export const DEFAULT_SETTINGS: LoyaltySettings = {
   enabled: true,
   tiers: [
-    { name: "Bronze", minSpend: 0, maxSpend: 500, creditPercentage: 5 },
-    { name: "Silver", minSpend: 500, maxSpend: 1000, creditPercentage: 7 },
-    { name: "Gold", minSpend: 1000, maxSpend: null, creditPercentage: 10 },
+    { name: "Bronze", minSpend: 0, maxSpend: 5000, creditPercentage: 5 },
+    { name: "Silver", minSpend: 5000, maxSpend: 10000, creditPercentage: 7 },
+    { name: "Gold", minSpend: 10000, maxSpend: null, creditPercentage: 10 },
   ],
   yearlyReset: true,
   resetMonth: 1, // January

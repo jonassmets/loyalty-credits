@@ -1,205 +1,119 @@
 import { render } from "preact";
-import { useState, useEffect } from "preact/hooks";
 
-export default async () => {
-  render(<RewardsPage />, document.body);
+export default async (api) => {
+  render(<RewardsPage api={api} />, document.body);
 };
 
-function RewardsPage() {
-  const i18n = shopify.i18n;
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+function RewardsPage({ api }) {
+  const i18n = api.i18n;
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const customerId = shopify.customerAccount?.customerId;
-        if (!customerId) {
-          setLoading(false);
-          return;
-        }
-        const token = await shopify.sessionToken.get();
-        const res = await fetch(
-          `/api/customer-loyalty?customerId=${encodeURIComponent(customerId)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (res.ok) {
-          setData(await res.json());
-        }
-      } catch (e) {
-        console.error("Failed to load loyalty data:", e);
-      }
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
-
-  if (loading) {
-    return (
-      <s-page heading="My Rewards">
-        <s-section>
-          <s-text color="subdued">Loading your rewards...</s-text>
-        </s-section>
-      </s-page>
-    );
-  }
-
-  if (!data || data.error) {
-    return (
-      <s-page heading="My Rewards">
-        <s-section>
-          <s-stack direction="block" gap="base">
-            <s-text type="strong">Loyalty Program</s-text>
-            <s-text>
-              Earn store credit on every purchase! The more you spend,
-              the higher your tier and the more you earn back.
-            </s-text>
-            <s-text color="subdued">
-              Your rewards will appear here once you make your first purchase.
-            </s-text>
-          </s-stack>
-        </s-section>
-      </s-page>
-    );
-  }
-
-  const currency = data.currencyCode || "EUR";
-  const balance = parseFloat(data.balance) || 0;
-  const totalEarned = data.totalEarned || 0;
-  const totalSpent = data.totalSpent || 0;
-  const tier = data.tier || { name: "Member", creditPercentage: 0 };
-  const nextTier = data.nextTier;
-  const tiers = data.tiers || [];
-  const activity = data.recentActivity || [];
+  const tiers = [
+    { name: "Bronze", minSpend: 0, maxSpend: 5000, percentage: 5 },
+    { name: "Silver", minSpend: 5000, maxSpend: 10000, percentage: 7 },
+    { name: "Gold", minSpend: 10000, maxSpend: null, percentage: 10 },
+  ];
 
   return (
     <s-page heading="My Rewards">
       <s-stack direction="block" gap="large">
-        {/* Balance overview */}
+        {/* Intro */}
         <s-section>
           <s-stack direction="block" gap="base">
-            <s-stack direction="inline" inline-alignment="space-between">
-              <s-text type="strong" color="subdued">STORE CREDIT</s-text>
-              <s-text type="strong" tone="success">{tier.name}</s-text>
-            </s-stack>
-
-            <s-grid gridTemplateColumns="1fr 1fr 1fr 1fr" gap="large">
-              <s-stack direction="block" gap="small">
-                <s-text color="subdued">Balance</s-text>
-                <s-text type="strong">
-                  {i18n.formatCurrency(balance, { currency })}
-                </s-text>
-              </s-stack>
-              <s-stack direction="block" gap="small">
-                <s-text color="subdued">Total earned</s-text>
-                <s-text type="strong">
-                  {i18n.formatCurrency(totalEarned, { currency })}
-                </s-text>
-              </s-stack>
-              <s-stack direction="block" gap="small">
-                <s-text color="subdued">Total spent</s-text>
-                <s-text type="strong">
-                  {i18n.formatCurrency(totalSpent, { currency })}
-                </s-text>
-              </s-stack>
-              <s-stack direction="block" gap="small">
-                <s-text color="subdued">Earning rate</s-text>
-                <s-text type="strong">{tier.creditPercentage}%</s-text>
-              </s-stack>
-            </s-grid>
-
-            <s-text color="subdued">
-              Your store credit is applied automatically at checkout. No code needed!
+            <s-text type="strong" color="subdued">
+              LOYALTY PROGRAM
             </s-text>
-
-            {nextTier && nextTier.amountToReach > 0 && (
-              <s-banner tone="info">
-                <s-text>
-                  Spend {i18n.formatCurrency(nextTier.amountToReach, { currency })}{" "}
-                  more to reach <s-text type="strong">{nextTier.name}</s-text> and
-                  unlock a higher earning rate!
-                </s-text>
-              </s-banner>
-            )}
-
-            {!nextTier && (
-              <s-banner tone="success">
-                <s-text>
-                  You're at the highest tier! You earn {tier.creditPercentage}% store
-                  credit on every order.
-                </s-text>
-              </s-banner>
-            )}
+            <s-text>
+              Earn store credit on every purchase! Your cashback percentage
+              is based on how much you've spent in the last 12 months.
+              The more you shop, the more you earn back.
+            </s-text>
+            <s-banner tone="info">
+              <s-text>
+                Store credit is applied automatically at checkout — no codes
+                needed. It works online, with Shop Pay, and at POS.
+              </s-text>
+            </s-banner>
           </s-stack>
         </s-section>
 
-        {/* Tier overview */}
-        {tiers.length > 0 && (
-          <s-section>
-            <s-stack direction="block" gap="base">
-              <s-text type="strong" color="subdued">LOYALTY TIERS</s-text>
+        {/* Tiers */}
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-text type="strong" color="subdued">
+              SPENDING TIERS
+            </s-text>
+            <s-text color="subdued">
+              Your tier is based on your total spending in the last 12 months.
+              Keep shopping to maintain or increase your tier!
+            </s-text>
 
-              {tiers.map((t) => (
-                <s-stack
-                  key={t.name}
-                  direction="inline"
-                  inline-alignment="space-between"
-                  gap="base"
-                >
-                  <s-stack direction="inline" gap="small">
-                    <s-text type={t.isCurrent ? "strong" : "generic"}>
-                      {t.isCurrent ? `▸ ${t.name}` : t.name}
-                    </s-text>
-                    {t.isCurrent && (
-                      <s-text tone="success">(you)</s-text>
-                    )}
-                  </s-stack>
-                  <s-stack direction="inline" gap="large">
-                    <s-text color="subdued">
-                      {i18n.formatCurrency(t.minSpend, { currency })} min
-                    </s-text>
-                    <s-text type="strong">{t.creditPercentage}% back</s-text>
-                  </s-stack>
-                </s-stack>
-              ))}
-            </s-stack>
-          </s-section>
-        )}
-
-        {/* Recent activity */}
-        {activity.length > 0 && (
-          <s-section>
-            <s-stack direction="block" gap="base">
-              <s-text type="strong" color="subdued">RECENT ACTIVITY</s-text>
-
-              {activity.map((item, idx) => (
-                <s-stack
-                  key={idx}
-                  direction="inline"
-                  inline-alignment="space-between"
-                  gap="base"
-                >
+            {tiers.map((t) => (
+              <s-card key={t.name}>
+                <s-stack direction="inline" inline-alignment="space-between" gap="base">
                   <s-stack direction="block" gap="small">
-                    <s-text>{item.note}</s-text>
-                    <s-text color="subdued">{item.date}</s-text>
+                    <s-text type="strong">{t.name}</s-text>
+                    <s-text color="subdued">
+                      {t.maxSpend
+                        ? `${i18n.formatCurrency(t.minSpend, { currency: "EUR" })} – ${i18n.formatCurrency(t.maxSpend, { currency: "EUR" })}`
+                        : `${i18n.formatCurrency(t.minSpend, { currency: "EUR" })}+`}
+                      {" "}spent in 12 months
+                    </s-text>
                   </s-stack>
                   <s-text type="strong" tone="success">
-                    +{i18n.formatCurrency(item.amount, { currency })}
+                    {t.percentage}% cashback
                   </s-text>
                 </s-stack>
-              ))}
-            </s-stack>
-          </s-section>
-        )}
+              </s-card>
+            ))}
+          </s-stack>
+        </s-section>
 
         {/* How it works */}
         <s-section>
           <s-stack direction="block" gap="base">
-            <s-text type="strong" color="subdued">HOW IT WORKS</s-text>
-            <s-text>1. Shop as usual — earn store credit on every purchase.</s-text>
-            <s-text>2. The more you spend, the higher your tier and earning rate.</s-text>
-            <s-text>3. Store credit is applied automatically at checkout.</s-text>
-            <s-text>4. Works online, with Shop Pay, and at POS.</s-text>
+            <s-text type="strong" color="subdued">
+              HOW IT WORKS
+            </s-text>
+            <s-stack direction="block" gap="small">
+              <s-text>
+                1. Shop as usual — every purchase counts toward your tier.
+              </s-text>
+              <s-text>
+                2. Your tier is based on your spending in the last 12 months.
+              </s-text>
+              <s-text>
+                3. After each order, you receive your tier's percentage as store credit.
+              </s-text>
+              <s-text>
+                4. Store credit is applied automatically at your next checkout.
+              </s-text>
+              <s-text>
+                5. Stay active to keep your tier — if you don't purchase for
+                a year, your tier resets to Bronze.
+              </s-text>
+            </s-stack>
+          </s-stack>
+        </s-section>
+
+        {/* Example */}
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-text type="strong" color="subdued">
+              EXAMPLE
+            </s-text>
+            <s-text>
+              You've spent {i18n.formatCurrency(6500, { currency: "EUR" })}{" "}
+              in the last 12 months, so you're in the <s-text type="strong">Silver</s-text> tier.
+            </s-text>
+            <s-text>
+              Your next order of {i18n.formatCurrency(100, { currency: "EUR" })}{" "}
+              earns you {i18n.formatCurrency(7, { currency: "EUR" })} in store
+              credit (7% cashback).
+            </s-text>
+            <s-text color="subdued">
+              Spend {i18n.formatCurrency(3500, { currency: "EUR" })} more to
+              reach Gold and earn 10% cashback on every order!
+            </s-text>
           </s-stack>
         </s-section>
       </s-stack>

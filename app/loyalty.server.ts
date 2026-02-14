@@ -1,6 +1,6 @@
 /**
  * Loyalty Credits - Server-side logic
- * Uses Shopify native store credit for loyalty rewards.
+ * Uses Shopify native store credit with rolling 12-month tier calculation.
  */
 
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
@@ -70,7 +70,6 @@ export async function saveSettings(
 
   const data = await response.json();
   const errors = data.data?.metafieldsSet?.userErrors;
-
   if (errors?.length) {
     return { success: false, error: errors.map((e: any) => e.message).join(", ") };
   }
@@ -88,6 +87,66 @@ async function getAppInstallationId(
   );
   const data = await response.json();
   return data.data!.currentAppInstallation.id;
+}
+
+// ── Rolling 12-month spend calculation ─────────────────────────────
+
+/**
+ * Calculate how much a customer has spent in the last 12 months
+ * by looking at actual paid order dates.
+ */
+export async function getRolling12MonthSpend(
+  admin: AdminApiContext["admin"],
+  customerId: string,
+): Promise<{ totalSpend: number; orderCount: number; lastOrderDate: string | null }> {
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+  const dateStr = twelveMonthsAgo.toISOString().split("T")[0]; // YYYY-MM-DD
+
+  const response = await admin.graphql(
+    `#graphql
+    query GetCustomerOrders($customerId: ID!, $query: String!) {
+      customer(id: $customerId) {
+        orders(first: 250, query: $query) {
+          nodes {
+            id
+            createdAt
+            totalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }`,
+    {
+      variables: {
+        customerId,
+        query: `created_at:>${dateStr} financial_status:paid`,
+      },
+    },
+  );
+
+  const data = await response.json();
+  const orders = data.data?.customer?.orders?.nodes || [];
+
+  let totalSpend = 0;
+  let lastOrderDate: string | null = null;
+
+  for (const order of orders) {
+    totalSpend += parseFloat(order.totalPriceSet?.shopMoney?.amount || "0");
+    if (!lastOrderDate || order.createdAt > lastOrderDate) {
+      lastOrderDate = order.createdAt;
+    }
+  }
+
+  return {
+    totalSpend: Math.round(totalSpend * 100) / 100,
+    orderCount: orders.length,
+    lastOrderDate,
+  };
 }
 
 // ── Store Credit ───────────────────────────────────────────────────
@@ -136,12 +195,12 @@ export async function addStoreCredit(
   };
 }
 
-// ── Customer Loyalty Data (metafields) ─────────────────────────────
+// ── Customer Loyalty Data ──────────────────────────────────────────
 
 export interface CustomerLoyaltyData {
   totalSpent: number;
   totalEarned: number;
-  periodSpent: number;
+  periodSpent: number; // rolling 12-month spend
   storeCreditBalance: string | null;
 }
 
@@ -149,38 +208,39 @@ export async function getCustomerLoyaltyData(
   admin: AdminApiContext["admin"],
   customerId: string,
 ): Promise<CustomerLoyaltyData> {
-  const response = await admin.graphql(
-    `#graphql
-    query GetCustomerLoyaltyData($customerId: ID!) {
-      customer(id: $customerId) {
-        totalSpent: metafield(namespace: "$app", key: "loyalty_total_spent") {
-          value
-        }
-        totalEarned: metafield(namespace: "$app", key: "loyalty_total_earned") {
-          value
-        }
-        periodSpent: metafield(namespace: "$app", key: "loyalty_period_spent") {
-          value
-        }
-        storeCreditAccounts(first: 1) {
-          nodes {
-            id
-            balance { amount currencyCode }
+  // Get metafield data + store credit in parallel with rolling spend
+  const [metafieldResponse, rollingSpend] = await Promise.all([
+    admin.graphql(
+      `#graphql
+      query GetCustomerLoyaltyData($customerId: ID!) {
+        customer(id: $customerId) {
+          totalSpent: metafield(namespace: "$app", key: "loyalty_total_spent") {
+            value
+          }
+          totalEarned: metafield(namespace: "$app", key: "loyalty_total_earned") {
+            value
+          }
+          storeCreditAccounts(first: 1) {
+            nodes {
+              id
+              balance { amount currencyCode }
+            }
           }
         }
-      }
-    }`,
-    { variables: { customerId } },
-  );
+      }`,
+      { variables: { customerId } },
+    ),
+    getRolling12MonthSpend(admin, customerId),
+  ]);
 
-  const data = await response.json();
+  const data = await metafieldResponse.json();
   const customer = data.data?.customer;
   const account = customer?.storeCreditAccounts?.nodes?.[0];
 
   return {
     totalSpent: parseFloat(customer?.totalSpent?.value || "0"),
     totalEarned: parseFloat(customer?.totalEarned?.value || "0"),
-    periodSpent: parseFloat(customer?.periodSpent?.value || "0"),
+    periodSpent: rollingSpend.totalSpend, // Use real order data, not metafield
     storeCreditBalance: account?.balance?.amount ?? null,
   };
 }
@@ -191,8 +251,26 @@ export async function updateCustomerSpending(
   orderAmount: number,
   creditEarned: number,
 ): Promise<void> {
-  // Get current values
-  const current = await getCustomerLoyaltyData(admin, customerId);
+  // Get current totals
+  const response = await admin.graphql(
+    `#graphql
+    query GetCustomerTotals($customerId: ID!) {
+      customer(id: $customerId) {
+        totalSpent: metafield(namespace: "$app", key: "loyalty_total_spent") {
+          value
+        }
+        totalEarned: metafield(namespace: "$app", key: "loyalty_total_earned") {
+          value
+        }
+      }
+    }`,
+    { variables: { customerId } },
+  );
+
+  const data = await response.json();
+  const customer = data.data?.customer;
+  const currentSpent = parseFloat(customer?.totalSpent?.value || "0");
+  const currentEarned = parseFloat(customer?.totalEarned?.value || "0");
 
   await admin.graphql(
     `#graphql
@@ -210,21 +288,14 @@ export async function updateCustomerSpending(
             namespace: "$app",
             key: "loyalty_total_spent",
             type: "number_decimal",
-            value: (current.totalSpent + orderAmount).toString(),
+            value: (currentSpent + orderAmount).toString(),
           },
           {
             ownerId: customerId,
             namespace: "$app",
             key: "loyalty_total_earned",
             type: "number_decimal",
-            value: (current.totalEarned + creditEarned).toString(),
-          },
-          {
-            ownerId: customerId,
-            namespace: "$app",
-            key: "loyalty_period_spent",
-            type: "number_decimal",
-            value: (current.periodSpent + orderAmount).toString(),
+            value: (currentEarned + creditEarned).toString(),
           },
         ],
       },
@@ -235,26 +306,28 @@ export async function updateCustomerSpending(
 // ── Order Processing ───────────────────────────────────────────────
 
 /**
- * Process a paid order: calculate tier, award store credit, update stats.
+ * Process a paid order:
+ * 1. Calculate rolling 12-month spend (including this order)
+ * 2. Determine tier based on that spend
+ * 3. Award store credit = tier % of order total
+ * 4. Update metafields
  */
 export async function processOrder(
   admin: AdminApiContext["admin"],
   customerId: string,
   orderTotal: number,
-): Promise<{ creditAwarded: number; tier: LoyaltyTier } | null> {
+): Promise<{ creditAwarded: number; tier: LoyaltyTier; rollingSpend: number } | null> {
   const settings = await getSettings(admin);
 
   if (!settings.enabled || settings.tiers.length === 0) {
     return null;
   }
 
-  // Use period spend for tier calculation (respects yearly reset)
-  const customerData = await getCustomerLoyaltyData(admin, customerId);
-  const spendForTier = settings.yearlyReset
-    ? customerData.periodSpent
-    : customerData.totalSpent;
+  // Get rolling 12-month spend (this already includes the paid order)
+  const { totalSpend: rollingSpend } = await getRolling12MonthSpend(admin, customerId);
 
-  const tier = getTierForSpend(settings.tiers, spendForTier);
+  // Determine tier based on rolling spend
+  const tier = getTierForSpend(settings.tiers, rollingSpend);
   const creditAmount = calculateCredit(orderTotal, tier.creditPercentage);
 
   if (creditAmount <= 0) return null;
@@ -272,8 +345,8 @@ export async function processOrder(
     return null;
   }
 
-  // Update customer spending metafields
+  // Update cumulative metafields for tracking
   await updateCustomerSpending(admin, customerId, orderTotal, creditAmount);
 
-  return { creditAwarded: creditAmount, tier };
+  return { creditAwarded: creditAmount, tier, rollingSpend };
 }

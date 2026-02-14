@@ -62,7 +62,7 @@ async function handleOrderPaid(admin: any, shop: string, payload: any) {
         orderId,
         amount: result.creditAwarded,
         type: "purchase_credit",
-        note: `${result.tier.creditPercentage}% of ${orderTotal} (${result.tier.name} tier)`,
+        note: `${result.tier.creditPercentage}% of ${orderTotal} (${result.tier.name} tier, 12m spend: ${result.rollingSpend})`,
       },
     });
 

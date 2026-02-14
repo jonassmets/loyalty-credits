@@ -5,7 +5,7 @@ import {
   useLoaderData,
   useNavigation,
   useSubmit,
-  useFetcher,
+  useSearchParams,
 } from "react-router";
 import {
   Badge,
@@ -14,7 +14,6 @@ import {
   Box,
   Button,
   Card,
-  DataTable,
   Divider,
   EmptyState,
   InlineGrid,
@@ -30,10 +29,10 @@ import {
 import { authenticate } from "../shopify.server";
 import { addStoreCredit, getSettings, getCustomerLoyaltyData } from "../loyalty.server";
 import { getTierForSpend } from "../loyalty.shared";
-import type { LoyaltySettings, LoyaltyTier } from "../loyalty.shared";
+import type { LoyaltySettings } from "../loyalty.shared";
 import prisma from "../db.server";
 
-// ── Loader: handles search via ?q= ──────────────────────────────────
+// ── Loader ───────────────────────────────────────────────────────────
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -45,11 +44,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     settings = await getSettings(admin);
   } catch {
     settings = {
-      tiers: [],
-      currencyCode: "EUR",
-      enabled: false,
-      yearlyReset: false,
-      resetMonth: 1,
+      tiers: [], currencyCode: "EUR", enabled: false,
+      yearlyReset: true, resetMonth: 1, bonuses: {
+        referralEnabled: false, referralAmount: 0,
+        referralNewCustomerAmount: 0, milestoneEnabled: false, milestones: [],
+      },
     };
   }
 
@@ -67,6 +66,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     nextTierMinSpend: number | null;
     spendProgress: number;
   }> = [];
+  let searchError: string | null = null;
 
   if (search.length >= 2) {
     try {
@@ -128,7 +128,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               ? sortedTiers[tierIndex + 1]
               : null;
 
-          // Progress toward next tier
           let spendProgress = 100;
           if (nextTier && tier) {
             const range = nextTier.minSpend - tier.minSpend;
@@ -136,8 +135,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             spendProgress = range > 0 ? Math.min((progress / range) * 100, 100) : 100;
           }
 
-          const creditBalance =
-            c.storeCreditAccounts?.nodes?.[0]?.balance;
+          const creditBalance = c.storeCreditAccounts?.nodes?.[0]?.balance;
 
           return {
             id: c.id,
@@ -157,15 +155,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           };
         }),
       );
-    } catch (e) {
+    } catch (e: any) {
       console.error("[customers] Search failed:", e);
+      searchError = e?.message || "Search failed";
     }
   }
 
-  return { customers, search, settings };
+  return { customers, search, settings, searchError };
 };
 
-// ── Action: manual credit ────────────────────────────────────────────
+// ── Action ───────────────────────────────────────────────────────────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -183,18 +182,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     try {
       const settings = await getSettings(admin);
-      const result = await addStoreCredit(
-        admin,
-        customerId,
-        amount,
-        settings.currencyCode,
-      );
+      const result = await addStoreCredit(admin, customerId, amount, settings.currencyCode);
 
       if (!result.success) {
-        return {
-          success: false,
-          error: result.error || "Failed to add credit",
-        };
+        return { success: false, error: result.error || "Failed to add credit" };
       }
 
       await prisma.loyaltyLog.create({
@@ -224,48 +215,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function Customers() {
-  const loaderData = useLoaderData<typeof loader>();
+  const { customers, search, settings, searchError } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Live search with fetcher
-  const fetcher = useFetcher<typeof loader>();
-  const [searchValue, setSearchValue] = useState("");
+  const isSearching = navigation.state === "loading";
+  const [searchValue, setSearchValue] = useState(search);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isSearching = fetcher.state === "loading";
-
-  // Use fetcher data if available, otherwise fall back to loader data
-  const displayData = fetcher.data || loaderData;
-  const { customers, settings } = displayData;
-
-  // Debounced search - triggers after 300ms of no typing
+  // Debounced search via URL params (preserves embedded auth)
   const handleSearchChange = useCallback(
     (value: string) => {
       setSearchValue(value);
 
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
       if (value.length >= 2) {
         debounceTimer.current = setTimeout(() => {
-          fetcher.load(`/app/customers?q=${encodeURIComponent(value)}`);
-        }, 300);
+          setSearchParams({ q: value });
+        }, 400);
+      } else if (value.length === 0) {
+        setSearchParams({});
       }
     },
-    [fetcher],
+    [setSearchParams],
   );
 
-  // Clean up timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
   }, []);
 
-  // Credit modal state
+  // Credit modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{
     id: string;
@@ -287,13 +271,12 @@ export default function Customers() {
     formData.set("intent", "add-credit");
     formData.set("customerId", selectedCustomer.id);
     formData.set("amount", creditAmount);
-    formData.set(
-      "note",
-      creditNote || `Manual credit for ${selectedCustomer.name}`,
-    );
+    formData.set("note", creditNote || `Manual credit for ${selectedCustomer.name}`);
     submit(formData, { method: "post" });
     setModalOpen(false);
   }, [selectedCustomer, creditAmount, creditNote, submit]);
+
+  const hasSearch = search.length >= 2;
 
   return (
     <Page title="Customers">
@@ -308,13 +291,14 @@ export default function Customers() {
         {actionData?.error && (
           <Banner title={actionData.error} tone="critical" />
         )}
+        {searchError && (
+          <Banner title={`Search error: ${searchError}`} tone="critical" />
+        )}
 
         {/* Search */}
         <Card>
           <BlockStack gap="300">
-            <Text variant="headingMd" as="h2">
-              Find a customer
-            </Text>
+            <Text variant="headingMd" as="h2">Find a customer</Text>
             <TextField
               label="Search"
               labelHidden
@@ -322,7 +306,7 @@ export default function Customers() {
               onChange={handleSearchChange}
               placeholder="Start typing a name, email, or phone number..."
               autoComplete="off"
-              prefix={isSearching ? <Spinner size="small" /> : undefined}
+              suffix={isSearching && hasSearch ? <Spinner size="small" /> : undefined}
               helpText={
                 searchValue.length > 0 && searchValue.length < 2
                   ? "Type at least 2 characters to search"
@@ -333,7 +317,7 @@ export default function Customers() {
         </Card>
 
         {/* Results */}
-        {searchValue.length >= 2 && customers.length > 0 && (
+        {hasSearch && customers.length > 0 && (
           <BlockStack gap="400">
             <Text variant="headingMd" as="h2">
               {customers.length} result{customers.length !== 1 ? "s" : ""}
@@ -344,19 +328,12 @@ export default function Customers() {
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="start">
                     <BlockStack gap="100">
-                      <Text variant="headingSm" as="h3">
-                        {c.name}
-                      </Text>
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        {c.email}
-                      </Text>
+                      <Text variant="headingSm" as="h3">{c.name}</Text>
+                      <Text variant="bodySm" as="p" tone="subdued">{c.email}</Text>
                     </BlockStack>
                     <InlineStack gap="200">
                       <Badge tone="info">{c.tierName}</Badge>
-                      <Button
-                        variant="plain"
-                        onClick={() => openCreditModal(c.id, c.name)}
-                      >
+                      <Button variant="plain" onClick={() => openCreditModal(c.id, c.name)}>
                         Add credit
                       </Button>
                     </InlineStack>
@@ -366,41 +343,25 @@ export default function Customers() {
 
                   <InlineGrid columns={4} gap="400">
                     <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        Orders
-                      </Text>
-                      <Text variant="headingSm" as="p">
-                        {c.orders}
-                      </Text>
+                      <Text variant="bodySm" as="p" tone="subdued">Orders</Text>
+                      <Text variant="headingSm" as="p">{c.orders}</Text>
                     </BlockStack>
                     <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        Total spent
-                      </Text>
-                      <Text variant="headingSm" as="p">
-                        {c.totalSpent}
-                      </Text>
+                      <Text variant="bodySm" as="p" tone="subdued">Total spent</Text>
+                      <Text variant="headingSm" as="p">{c.totalSpent}</Text>
                     </BlockStack>
                     <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        Store credit
-                      </Text>
-                      <Text variant="headingSm" as="p">
-                        {c.storeCredit}
-                      </Text>
+                      <Text variant="bodySm" as="p" tone="subdued">Store credit</Text>
+                      <Text variant="headingSm" as="p">{c.storeCredit}</Text>
                     </BlockStack>
                     <BlockStack gap="050">
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        Credits earned
-                      </Text>
+                      <Text variant="bodySm" as="p" tone="subdued">Credits earned</Text>
                       <Text variant="headingSm" as="p">
-                        {settings.currencyCode}{" "}
-                        {c.loyaltyEarned.toFixed(2)}
+                        {settings.currencyCode} {c.loyaltyEarned.toFixed(2)}
                       </Text>
                     </BlockStack>
                   </InlineGrid>
 
-                  {/* Next tier progress */}
                   {c.nextTierName && (
                     <>
                       <Divider />
@@ -411,15 +372,10 @@ export default function Customers() {
                           </Text>
                           <Text variant="bodySm" as="p" tone="subdued">
                             {settings.currencyCode}{" "}
-                            {Math.max(0, (c.nextTierMinSpend || 0) - c.loyaltySpent).toFixed(0)}{" "}
-                            to go
+                            {Math.max(0, (c.nextTierMinSpend || 0) - c.loyaltySpent).toFixed(0)} to go
                           </Text>
                         </InlineStack>
-                        <ProgressBar
-                          progress={c.spendProgress}
-                          tone="primary"
-                          size="small"
-                        />
+                        <ProgressBar progress={c.spendProgress} tone="primary" size="small" />
                       </BlockStack>
                     </>
                   )}
@@ -430,7 +386,7 @@ export default function Customers() {
                       <InlineStack gap="200" blockAlign="center">
                         <Badge tone="success">Top tier</Badge>
                         <Text variant="bodySm" as="p" tone="subdued">
-                          This customer is at the highest loyalty level
+                          Highest loyalty level
                         </Text>
                       </InlineStack>
                     </>
@@ -441,7 +397,7 @@ export default function Customers() {
           </BlockStack>
         )}
 
-        {searchValue.length >= 2 && customers.length === 0 && !isSearching && (
+        {hasSearch && customers.length === 0 && !isSearching && !searchError && (
           <Card>
             <EmptyState heading="No customers found" image="">
               <p>Try a different name, email, or phone number.</p>
@@ -449,44 +405,28 @@ export default function Customers() {
           </Card>
         )}
 
-        {searchValue.length < 2 && (
-          <Layout>
-            <Layout.Section>
-              <Card>
-                <BlockStack gap="400">
-                  <Text variant="headingMd" as="h2">
-                    Customer Loyalty
-                  </Text>
-                  <Divider />
-                  <Text variant="bodyMd" as="p">
-                    Search for any customer to see their loyalty tier, spending
-                    history, and store credit balance. You can also manually add
-                    store credit for returns, promotions, or special rewards.
-                  </Text>
-                  <BlockStack gap="200">
-                    <InlineStack gap="200" blockAlign="center">
-                      <Badge tone="info">Tier tracking</Badge>
-                      <Text variant="bodyMd" as="p">
-                        See which tier each customer is in and their progress to the next level
-                      </Text>
-                    </InlineStack>
-                    <InlineStack gap="200" blockAlign="center">
-                      <Badge tone="success">Manual credits</Badge>
-                      <Text variant="bodyMd" as="p">
-                        Add store credit for returns, complaints, referrals, or promotions
-                      </Text>
-                    </InlineStack>
-                    <InlineStack gap="200" blockAlign="center">
-                      <Badge>Balance view</Badge>
-                      <Text variant="bodyMd" as="p">
-                        Check any customer's current store credit balance
-                      </Text>
-                    </InlineStack>
-                  </BlockStack>
-                </BlockStack>
-              </Card>
-            </Layout.Section>
-          </Layout>
+        {!hasSearch && (
+          <Card>
+            <BlockStack gap="400">
+              <Text variant="headingMd" as="h2">Customer Loyalty</Text>
+              <Divider />
+              <Text variant="bodyMd" as="p">
+                Search for any customer to see their loyalty tier, spending
+                history, and store credit balance. You can also manually add
+                store credit.
+              </Text>
+              <BlockStack gap="200">
+                <InlineStack gap="200" blockAlign="center">
+                  <Badge tone="info">Tier tracking</Badge>
+                  <Text variant="bodyMd" as="p">See each customer's tier and progress</Text>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Badge tone="success">Manual credits</Badge>
+                  <Text variant="bodyMd" as="p">Add credit for returns, referrals, or promotions</Text>
+                </InlineStack>
+              </BlockStack>
+            </BlockStack>
+          </Card>
         )}
       </BlockStack>
 
@@ -508,12 +448,6 @@ export default function Customers() {
         >
           <Modal.Section>
             <BlockStack gap="400">
-              <Banner tone="info">
-                <p>
-                  Credit is added via Shopify's native store credit. The
-                  customer can use it immediately at checkout or POS.
-                </p>
-              </Banner>
               <TextField
                 label={`Amount (${settings.currencyCode})`}
                 type="number"
@@ -528,7 +462,7 @@ export default function Customers() {
                 label="Note (optional)"
                 value={creditNote}
                 onChange={setCreditNote}
-                placeholder="e.g., Referral reward, Return credit, Birthday bonus"
+                placeholder="e.g., Referral reward, Return credit"
                 autoComplete="off"
                 multiline={2}
               />
