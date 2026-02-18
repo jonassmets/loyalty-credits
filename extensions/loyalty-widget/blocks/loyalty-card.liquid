@@ -20,19 +20,19 @@
 
   {% if loyalty_spent >= tier3_min %}
     {% assign tier_name = block.settings.tier3_name %}
-    {% assign tier_pct = block.settings.tier3_pct %}
+    {% assign tier_pct = block.settings.tier3_cashback %}
     {% assign next_tier = blank %}
     {% assign progress = 100 %}
   {% elsif loyalty_spent >= tier2_min %}
     {% assign tier_name = block.settings.tier2_name %}
-    {% assign tier_pct = block.settings.tier2_pct %}
+    {% assign tier_pct = block.settings.tier2_cashback %}
     {% assign next_tier = block.settings.tier3_name %}
     {% assign remaining = tier3_min | minus: loyalty_spent %}
     {% assign range = tier3_min | minus: tier2_min %}
     {% assign progress = loyalty_spent | minus: tier2_min | times: 100 | divided_by: range %}
   {% else %}
     {% assign tier_name = block.settings.tier1_name %}
-    {% assign tier_pct = block.settings.tier1_pct %}
+    {% assign tier_pct = block.settings.tier1_cashback %}
     {% assign next_tier = block.settings.tier2_name %}
     {% assign remaining = tier2_min | minus: loyalty_spent %}
     {% assign range = tier2_min %}
@@ -119,15 +119,15 @@
             <div style="display: flex; justify-content: space-between; margin-top: 6px;">
               <div>
                 <p style="font-size: {{ block.settings.label_size }}px; font-weight: 600; margin: 0;">{{ block.settings.tier1_name }}</p>
-                <p style="font-size: {{ block.settings.label_size }}px; opacity: 0.7; margin: 0;">{{ block.settings.tier1_pct }}%</p>
+                <p style="font-size: {{ block.settings.label_size }}px; opacity: 0.7; margin: 0;">{{ block.settings.tier1_cashback }}%</p>
               </div>
               <div style="text-align: center;">
                 <p style="font-size: {{ block.settings.label_size }}px; font-weight: 600; margin: 0;">{{ block.settings.tier2_name }}</p>
-                <p style="font-size: {{ block.settings.label_size }}px; opacity: 0.7; margin: 0;">{{ block.settings.tier2_pct }}%</p>
+                <p style="font-size: {{ block.settings.label_size }}px; opacity: 0.7; margin: 0;">{{ block.settings.tier2_cashback }}%</p>
               </div>
               <div style="text-align: right;">
                 <p style="font-size: {{ block.settings.label_size }}px; font-weight: 600; margin: 0;">{{ block.settings.tier3_name }}</p>
-                <p style="font-size: {{ block.settings.label_size }}px; opacity: 0.7; margin: 0;">{{ block.settings.tier3_pct }}%</p>
+                <p style="font-size: {{ block.settings.label_size }}px; opacity: 0.7; margin: 0;">{{ block.settings.tier3_cashback }}%</p>
               </div>
             </div>
           {% endif %}
@@ -160,7 +160,7 @@
       <h3 style="font-size: {{ block.settings.heading_size }}px; font-weight: {{ block.settings.heading_weight }}; margin: 0 0 8px;">{{ block.settings.guest_heading }}</h3>
       <p style="font-size: {{ block.settings.body_size }}px; opacity: 0.8; margin: 0 0 8px;">{{ block.settings.guest_description }}</p>
       <p style="font-size: {{ block.settings.body_size }}px; margin: 0 0 16px; opacity: 0.7;">
-        {{ block.settings.tier1_name }}: {{ block.settings.tier1_pct }}% · {{ block.settings.tier2_name }}: {{ block.settings.tier2_pct }}% · {{ block.settings.tier3_name }}: {{ block.settings.tier3_pct }}%
+        {{ block.settings.tier1_name }}: {{ block.settings.tier1_cashback }}% · {{ block.settings.tier2_name }}: {{ block.settings.tier2_cashback }}% · {{ block.settings.tier3_name }}: {{ block.settings.tier3_cashback }}%
       </p>
       <a href="{{ routes.account_login_url }}" style="
         display: inline-block;
@@ -419,7 +419,7 @@
     },
     {
       "type": "number",
-      "id": "tier1_pct",
+      "id": "tier1_cashback",
       "label": "Tier 1 %",
       "default": 5
     },
@@ -431,7 +431,7 @@
     },
     {
       "type": "number",
-      "id": "tier2_pct",
+      "id": "tier2_cashback",
       "label": "Tier 2 %",
       "default": 7
     },
@@ -449,7 +449,7 @@
     },
     {
       "type": "number",
-      "id": "tier3_pct",
+      "id": "tier3_cashback",
       "label": "Tier 3 %",
       "default": 10
     },

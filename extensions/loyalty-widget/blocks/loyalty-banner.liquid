@@ -37,13 +37,13 @@
     {% if block.settings.show_tiers %}
       <p style="margin: 4px 0 0; font-size: {{ block.settings.subtitle_size }}px; opacity: {{ block.settings.subtitle_opacity }};">
         {% if block.settings.tier1_name != blank %}
-          {{ block.settings.tier1_name }}: {{ block.settings.tier1_pct }}%
+          {{ block.settings.tier1_name }}: {{ block.settings.tier1_cashback }}%
         {% endif %}
         {% if block.settings.tier2_name != blank %}
-          · {{ block.settings.tier2_name }}: {{ block.settings.tier2_pct }}%
+          · {{ block.settings.tier2_name }}: {{ block.settings.tier2_cashback }}%
         {% endif %}
         {% if block.settings.tier3_name != blank %}
-          · {{ block.settings.tier3_name }}: {{ block.settings.tier3_pct }}%
+          · {{ block.settings.tier3_name }}: {{ block.settings.tier3_cashback }}%
         {% endif %}
       </p>
     {% endif %}
@@ -315,7 +315,7 @@
     },
     {
       "type": "number",
-      "id": "tier1_pct",
+      "id": "tier1_cashback",
       "label": "Tier 1 %",
       "default": 5
     },
@@ -327,7 +327,7 @@
     },
     {
       "type": "number",
-      "id": "tier2_pct",
+      "id": "tier2_cashback",
       "label": "Tier 2 %",
       "default": 7
     },
@@ -339,7 +339,7 @@
     },
     {
       "type": "number",
-      "id": "tier3_pct",
+      "id": "tier3_cashback",
       "label": "Tier 3 %",
       "default": 10
     }

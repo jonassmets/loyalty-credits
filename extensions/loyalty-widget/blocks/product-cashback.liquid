@@ -4,8 +4,8 @@
 {% endcomment %}
 
 {% assign product_price = product.selected_or_first_available_variant.price | times: 1.0 %}
-{% assign min_pct = block.settings.tier1_pct | times: 1.0 %}
-{% assign max_pct = block.settings.tier3_pct | times: 1.0 %}
+{% assign min_pct = block.settings.tier1_pct_x100 | times: 1.0 %}
+{% assign max_pct = block.settings.tier3_pct_x100 | times: 1.0 %}
 
 {% assign customer_pct = 0 %}
 {% assign customer_tier_name = "" %}
@@ -19,13 +19,13 @@
   {% assign t3_min = block.settings.tier3_min | times: 1.0 %}
 
   {% if total_spent >= t3_min %}
-    {% assign customer_pct = block.settings.tier3_pct | times: 1.0 %}
+    {% assign customer_pct = block.settings.tier3_pct_x100 | times: 1.0 %}
     {% assign customer_tier_name = block.settings.tier3_name %}
   {% elsif total_spent >= t2_min %}
-    {% assign customer_pct = block.settings.tier2_pct | times: 1.0 %}
+    {% assign customer_pct = block.settings.tier2_pct_x100 | times: 1.0 %}
     {% assign customer_tier_name = block.settings.tier2_name %}
   {% else %}
-    {% assign customer_pct = block.settings.tier1_pct | times: 1.0 %}
+    {% assign customer_pct = block.settings.tier1_pct_x100 | times: 1.0 %}
     {% assign customer_tier_name = block.settings.tier1_name %}
   {% endif %}
 {% endif %}
@@ -382,7 +382,7 @@
     },
     {
       "type": "number",
-      "id": "tier1_pct",
+      "id": "tier1_pct_x100",
       "label": "Tier 1 % (x100)",
       "info": "500 = 5%",
       "default": 500
@@ -401,7 +401,7 @@
     },
     {
       "type": "number",
-      "id": "tier2_pct",
+      "id": "tier2_pct_x100",
       "label": "Tier 2 % (x100)",
       "info": "700 = 7%",
       "default": 700
@@ -420,7 +420,7 @@
     },
     {
       "type": "number",
-      "id": "tier3_pct",
+      "id": "tier3_pct_x100",
       "label": "Tier 3 % (x100)",
       "info": "1000 = 10%",
       "default": 1000

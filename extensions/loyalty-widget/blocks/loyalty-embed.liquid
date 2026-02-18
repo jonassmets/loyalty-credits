@@ -4,13 +4,13 @@
 {% endcomment %}
 
 {% assign t1_name = block.settings.tier1_name %}
-{% assign t1_pct = block.settings.tier1_pct | times: 1.0 %}
+{% assign t1_pct = block.settings.tier1_pct_x100 | times: 1.0 %}
 {% assign t1_min = block.settings.tier1_min | times: 1.0 %}
 {% assign t2_name = block.settings.tier2_name %}
-{% assign t2_pct = block.settings.tier2_pct | times: 1.0 %}
+{% assign t2_pct = block.settings.tier2_pct_x100 | times: 1.0 %}
 {% assign t2_min = block.settings.tier2_min | times: 1.0 %}
 {% assign t3_name = block.settings.tier3_name %}
-{% assign t3_pct = block.settings.tier3_pct | times: 1.0 %}
+{% assign t3_pct = block.settings.tier3_pct_x100 | times: 1.0 %}
 {% assign t3_min = block.settings.tier3_min | times: 1.0 %}
 
 {% assign current_tier_name = t1_name %}
@@ -563,7 +563,7 @@
     },
     {
       "type": "number",
-      "id": "tier1_pct",
+      "id": "tier1_pct_x100",
       "label": "Tier 1 % (x100)",
       "info": "500 = 5%",
       "default": 500
@@ -582,7 +582,7 @@
     },
     {
       "type": "number",
-      "id": "tier2_pct",
+      "id": "tier2_pct_x100",
       "label": "Tier 2 % (x100)",
       "default": 700
     },
@@ -600,7 +600,7 @@
     },
     {
       "type": "number",
-      "id": "tier3_pct",
+      "id": "tier3_pct_x100",
       "label": "Tier 3 % (x100)",
       "default": 1000
     },
