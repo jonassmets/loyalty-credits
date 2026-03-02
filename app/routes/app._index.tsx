@@ -129,7 +129,7 @@ export default function Dashboard() {
     )?.label || "1 year";
 
   return (
-    <Page title="Loyalty Credits">
+    <Page title="CreditClub">
       <BlockStack gap="500">
         {/* Setup guide for new installs */}
         {!allSetUp && (
@@ -243,7 +243,7 @@ export default function Dashboard() {
                 {stats.uniqueCustomers}
               </Text>
               <Text variant="bodySm" as="p" tone="subdued">
-                earning loyalty credits
+                earning CreditClub credits
               </Text>
             </BlockStack>
           </Card>

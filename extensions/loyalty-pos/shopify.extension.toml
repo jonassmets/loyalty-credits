@@ -3,7 +3,7 @@ api_version = "2025-10"
 [[extensions]]
 uid = "1e1dd294-1019-d41a-b07f-d4b4aaff9d7d259dbd44"
 type = "ui_extension"
-name = "Loyalty Credits - POS"
+name = "CreditClub - POS"
 handle = "loyalty-pos"
 description = "Display customer loyalty balance and credit info on POS."
 

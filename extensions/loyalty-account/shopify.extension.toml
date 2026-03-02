@@ -2,7 +2,7 @@ api_version = "2025-10"
 
 [[extensions]]
 type = "ui_extension"
-name = "Loyalty Credits - Customer Account"
+name = "CreditClub - Customer Account"
 handle = "loyalty-account"
 uid = "8ea3c599-0904-df5e-db42-642a579c982e53dc2001"
 
@@ -94,7 +94,7 @@ module = "./src/OrderStatusBlock.jsx"
 
 [[extensions]]
 type = "ui_extension"
-name = "Loyalty Credits - Rewards Page"
+name = "CreditClub - Rewards Page"
 handle = "loyalty-rewards-page"
 uid = "0fc6c198-fd63-a750-82f6-062482cea4a393aa6b8c"
 

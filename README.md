@@ -1,4 +1,4 @@
-# Loyalty Credits
+# CreditClub
 
 A Shopify loyalty app that rewards customers with store credit (gift cards) on every purchase. Works across Admin, Storefront, Customer Accounts, POS, and Shopify Flow.
 

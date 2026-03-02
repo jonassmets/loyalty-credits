@@ -1,5 +1,5 @@
 /**
- * Loyalty Credits - Server-side logic
+ * CreditClub - Server-side logic
  * Uses Shopify native store credit with rolling 12-month tier calculation.
  */
 

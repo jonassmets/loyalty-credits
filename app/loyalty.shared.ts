@@ -1,5 +1,5 @@
 /**
- * Loyalty Credits - Shared types and constants
+ * CreditClub - Shared types and constants
  * Safe to import from both server and client code.
  */
 

@@ -1,5 +1,5 @@
 {% comment %}
-  Loyalty Credits Card Block
+  CreditClub Card Block
   Full loyalty card with tier, balance, and progress.
   Every visual aspect is configurable in the theme editor.
 {% endcomment %}
@@ -12,8 +12,8 @@
 {% endcase %}
 
 {% if customer %}
-  {% assign loyalty_balance = customer.metafields.loyalty_credits.balance.value | default: 0 %}
-  {% assign loyalty_spent = customer.metafields.loyalty_credits.total_spent.value | default: 0 | times: 1.0 %}
+  {% assign loyalty_balance = customer.metafields.creditclub.balance.value | default: 0 %}
+  {% assign loyalty_spent = customer.metafields.creditclub.total_spent.value | default: 0 | times: 1.0 %}
 
   {% assign tier2_min = block.settings.tier2_min | times: 1.0 %}
   {% assign tier3_min = block.settings.tier3_min | times: 1.0 %}

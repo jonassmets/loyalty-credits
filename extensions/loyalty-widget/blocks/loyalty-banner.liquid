@@ -1,5 +1,5 @@
 {% comment %}
-  Loyalty Credits Banner Block
+  CreditClub Banner Block
   Fully configurable lightweight banner. Colors, fonts, spacing, content — all adjustable.
 {% endcomment %}
 
@@ -49,7 +49,7 @@
     {% endif %}
 
     {% if block.settings.show_balance and customer %}
-      {% assign loyalty_balance = customer.metafields.loyalty_credits.balance.value | default: 0 %}
+      {% assign loyalty_balance = customer.metafields.creditclub.balance.value | default: 0 %}
       <p style="margin: 4px 0 0; font-size: {{ block.settings.subtitle_size }}px; opacity: {{ block.settings.subtitle_opacity }};">
         Your balance: {{ loyalty_balance | money_without_trailing_zeros }}
       </p>

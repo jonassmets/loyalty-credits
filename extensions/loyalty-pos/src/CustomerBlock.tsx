@@ -81,14 +81,14 @@ function CustomerLoyaltyBlock() {
 
   if (loading) {
     return (
-      <s-section heading="Loyalty Credits">
+      <s-section heading="CreditClub">
         <s-text color="subdued">Loading...</s-text>
       </s-section>
     );
   }
 
   return (
-    <s-section heading="Loyalty Credits">
+    <s-section heading="CreditClub">
       <s-stack direction="block" gap="small">
         <s-stack direction="inline" gap="large">
           <s-stack direction="block" gap="small">

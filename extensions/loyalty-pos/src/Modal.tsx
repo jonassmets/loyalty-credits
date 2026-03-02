@@ -97,7 +97,7 @@ function LoyaltyModal() {
 
   if (loading) {
     return (
-      <s-page heading="Loyalty Credits">
+      <s-page heading="CreditClub">
         <s-scroll-box>
           <s-section>
             <s-text>Loading customer loyalty data...</s-text>
@@ -109,7 +109,7 @@ function LoyaltyModal() {
 
   if (!hasCustomer) {
     return (
-      <s-page heading="Loyalty Credits">
+      <s-page heading="CreditClub">
         <s-scroll-box>
           <s-banner heading="No customer selected">
             <s-button
@@ -130,7 +130,7 @@ function LoyaltyModal() {
   }
 
   return (
-    <s-page heading="Loyalty Credits">
+    <s-page heading="CreditClub">
       <s-scroll-box>
         <s-section heading={customerName}>
           <s-stack direction="block" gap="base">

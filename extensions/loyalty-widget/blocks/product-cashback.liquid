@@ -1,5 +1,5 @@
 {% comment %}
-  Loyalty Credits - Product Cashback Banner
+  CreditClub - Product Cashback Banner
   Fully configurable in the theme editor: colors, fonts, spacing, visibility.
 {% endcomment %}
 
@@ -13,7 +13,7 @@
 
 {% if customer %}
   {% assign is_logged_in = true %}
-  {% assign total_spent = customer.metafields.loyalty_credits.total_spent.value | default: 0 | times: 1.0 %}
+  {% assign total_spent = customer.metafields.creditclub.total_spent.value | default: 0 | times: 1.0 %}
   {% assign t1_min = block.settings.tier1_min | times: 1.0 %}
   {% assign t2_min = block.settings.tier2_min | times: 1.0 %}
   {% assign t3_min = block.settings.tier3_min | times: 1.0 %}

@@ -1,5 +1,5 @@
 {% comment %}
-  Loyalty Credits - Floating Widget (App Embed)
+  CreditClub - Floating Widget (App Embed)
   Fully configurable: colors, fonts, position, size, content — all via theme editor.
 {% endcomment %}
 
@@ -24,8 +24,8 @@
 {% assign to_next = t2_min %}
 
 {% if customer %}
-  {% assign total_spent = customer.metafields.loyalty_credits.total_spent.value | default: 0 | times: 1.0 %}
-  {% assign balance = customer.metafields.loyalty_credits.balance.value | default: 0 | times: 1.0 %}
+  {% assign total_spent = customer.metafields.creditclub.total_spent.value | default: 0 | times: 1.0 %}
+  {% assign balance = customer.metafields.creditclub.balance.value | default: 0 | times: 1.0 %}
 
   {% if total_spent >= t3_min %}
     {% assign current_tier_name = t3_name %}

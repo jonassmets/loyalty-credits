@@ -34,7 +34,7 @@ function PostPurchaseBlock() {
 
   if (!hasCustomer) {
     return (
-      <s-section heading="Loyalty Credits">
+      <s-section heading="CreditClub">
         <s-text color="subdued">
           No customer was associated with this order. Loyalty credit requires a
           customer account.
@@ -44,7 +44,7 @@ function PostPurchaseBlock() {
   }
 
   return (
-    <s-section heading="Loyalty Credits">
+    <s-section heading="CreditClub">
       <s-stack direction="block" gap="base">
         <s-text type="strong" tone="success">
           Customer earned ~{earnedCredit} EUR in store credit!
