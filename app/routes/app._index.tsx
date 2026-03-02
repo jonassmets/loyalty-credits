@@ -1,5 +1,5 @@
-import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, Link } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { useLoaderData, Link, useNavigation, Form } from "react-router";
 import {
   Badge,
   Banner,
@@ -15,13 +15,21 @@ import {
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { getSettings } from "../loyalty.server";
+import { getSettings, saveSettings } from "../loyalty.server";
 import { DEFAULT_SETTINGS, CREDIT_EXPIRY_OPTIONS } from "../loyalty.shared";
 import type { LoyaltySettings } from "../loyalty.shared";
 import prisma from "../db.server";
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin } = await authenticate.admin(request);
+  const settings = await getSettings(admin);
+  await saveSettings(admin, { ...settings, widgetInstalled: true });
+  return { widgetMarked: true };
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+  const shop = session.shop;
 
   let settings: LoyaltySettings;
   try {
@@ -52,6 +60,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const setupChecks = {
     hasTiers: settings.tiers.length > 0,
     isEnabled: settings.enabled,
+    widgetInstalled: settings.widgetInstalled === true,
   };
 
   try {
@@ -104,7 +113,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[dashboard] Failed to load stats:", e);
   }
 
-  return { settings, stats, recentActivity, setupChecks };
+  return { settings, stats, recentActivity, setupChecks, shop };
 };
 
 function formatType(type: string): string {
@@ -119,10 +128,12 @@ function formatType(type: string): string {
 }
 
 export default function Dashboard() {
-  const { settings, stats, recentActivity, setupChecks } =
+  const { settings, stats, recentActivity, setupChecks, shop } =
     useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const isMarkingWidget = navigation.state === "submitting";
 
-  const allSetUp = setupChecks.hasTiers && setupChecks.isEnabled;
+  const allSetUp = setupChecks.hasTiers && setupChecks.isEnabled && setupChecks.widgetInstalled;
   const expiryLabel =
     CREDIT_EXPIRY_OPTIONS.find(
       (o) => o.value === ((settings as any).creditExpiry || "1_year"),
@@ -179,6 +190,42 @@ export default function Dashboard() {
                     <Link to="/app/settings">
                       <Button size="slim">Enable</Button>
                     </Link>
+                  )}
+                </InlineStack>
+
+                <InlineStack gap="300" blockAlign="center">
+                  <Badge tone={setupChecks.widgetInstalled ? "success" : "attention"}>
+                    {setupChecks.widgetInstalled ? "Done" : "To do"}
+                  </Badge>
+                  <BlockStack gap="050">
+                    <Text variant="bodyMd" as="p" fontWeight="semibold">
+                      Add CreditClub to your storefront
+                    </Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Add the loyalty widget or card block to your theme so
+                      customers can see their balance
+                    </Text>
+                  </BlockStack>
+                  {!setupChecks.widgetInstalled && (
+                    <InlineStack gap="200">
+                      <Button
+                        size="slim"
+                        url={`https://${shop}/admin/themes/current/editor`}
+                        target="_blank"
+                      >
+                        Open theme editor
+                      </Button>
+                      <Form method="post">
+                        <Button
+                          size="slim"
+                          variant="plain"
+                          submit
+                          loading={isMarkingWidget}
+                        >
+                          Mark as done
+                        </Button>
+                      </Form>
+                    </InlineStack>
                   )}
                 </InlineStack>
               </BlockStack>

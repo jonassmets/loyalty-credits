@@ -35,6 +35,8 @@ export interface LoyaltySettings {
   /** When store credit expires after being awarded */
   creditExpiry: CreditExpiryOption;
   bonuses: BonusSettings;
+  /** Merchant has confirmed the storefront widget is added to their theme */
+  widgetInstalled?: boolean;
   // Legacy fields for backwards compatibility
   yearlyReset?: boolean;
   resetMonth?: number;
