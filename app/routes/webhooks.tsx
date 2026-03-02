@@ -13,9 +13,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   switch (topic) {
     case "APP_UNINSTALLED": {
-      if (session) {
-        await prisma.session.deleteMany({ where: { shop } });
-      }
+      // Clean up all shop data on uninstall (required for Built for Shopify)
+      await Promise.all([
+        session ? prisma.session.deleteMany({ where: { shop } }) : Promise.resolve(),
+        prisma.loyaltyLog.deleteMany({ where: { shop } }),
+      ]);
       break;
     }
 
@@ -25,9 +27,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     case "CUSTOMERS_DATA_REQUEST":
-    case "CUSTOMERS_REDACT":
-    case "SHOP_REDACT":
+      // No personal data export required — loyalty logs contain only Shopify IDs
       break;
+
+    case "CUSTOMERS_REDACT": {
+      // Delete all loyalty data for this customer (GDPR — required for Built for Shopify)
+      const customerId = (payload as any)?.customer?.admin_graphql_api_id;
+      if (customerId) {
+        await prisma.loyaltyLog.deleteMany({ where: { shop, customerId } });
+      }
+      break;
+    }
+
+    case "SHOP_REDACT": {
+      // Delete all loyalty data for this shop (GDPR — required for Built for Shopify)
+      await prisma.loyaltyLog.deleteMany({ where: { shop } });
+      break;
+    }
 
     default:
       throw new Response("Unhandled webhook topic", { status: 404 });

@@ -360,14 +360,15 @@ export async function processOrder(
   customerId: string,
   orderTotal: number,
 ): Promise<{ creditAwarded: number; tier: LoyaltyTier; rollingSpend: number } | null> {
-  const settings = await getSettings(admin);
+  // Fetch settings and rolling spend in parallel to reduce latency
+  const [settings, { totalSpend: rollingSpend }] = await Promise.all([
+    getSettings(admin),
+    getRolling12MonthSpend(admin, customerId),
+  ]);
 
   if (!settings.enabled || settings.tiers.length === 0) {
     return null;
   }
-
-  // Get rolling 12-month spend (this already includes the paid order)
-  const { totalSpend: rollingSpend } = await getRolling12MonthSpend(admin, customerId);
 
   // Determine tier based on rolling spend
   const tier = getTierForSpend(settings.tiers, rollingSpend);
