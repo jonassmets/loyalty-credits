@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useActionData, useLoaderData, useNavigation, useSubmit } from "react-router";
+import { useActionData, useLoaderData, useNavigation, useSubmit, useNavigate } from "react-router";
 import {
   Badge,
   Banner,
@@ -90,6 +90,7 @@ export default function Tiers() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const navigate = useNavigate();
   const isSaving = navigation.state === "submitting";
 
   const [tiers, setTiers] = useState<LoyaltyTier[]>(
@@ -154,7 +155,7 @@ export default function Tiers() {
   return (
     <Page
       title="Spending Tiers"
-      backAction={{ url: "/app" }}
+      backAction={{ onAction: () => navigate("/app") }}
       primaryAction={{
         content: "Save tiers",
         onAction: handleSave,

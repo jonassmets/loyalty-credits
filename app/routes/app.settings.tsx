@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useActionData, useLoaderData, useNavigation, useSubmit } from "react-router";
+import { useActionData, useLoaderData, useNavigation, useSubmit, useNavigate } from "react-router";
 import {
   Banner,
   BlockStack,
@@ -63,6 +63,7 @@ export default function Settings() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const navigate = useNavigate();
   const isSaving = navigation.state === "submitting";
 
   const [enabled, setEnabled] = useState(saved.enabled);
@@ -104,7 +105,7 @@ export default function Settings() {
   return (
     <Page
       title="Settings"
-      backAction={{ url: "/app" }}
+      backAction={{ onAction: () => navigate("/app") }}
       primaryAction={{
         content: "Save settings",
         onAction: handleSave,

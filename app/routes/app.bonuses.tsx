@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useActionData, useLoaderData, useNavigation, useSubmit } from "react-router";
+import { useActionData, useLoaderData, useNavigation, useSubmit, useNavigate } from "react-router";
 import {
   Badge,
   Banner,
@@ -60,6 +60,7 @@ export default function Bonuses() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const navigate = useNavigate();
   const isSaving = navigation.state === "submitting";
 
   const defaults = DEFAULT_SETTINGS.bonuses;
@@ -135,7 +136,7 @@ export default function Bonuses() {
   return (
     <Page
       title="Bonus Credits"
-      backAction={{ url: "/app" }}
+      backAction={{ onAction: () => navigate("/app") }}
       primaryAction={{
         content: "Save",
         onAction: handleSave,
