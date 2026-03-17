@@ -12,16 +12,17 @@ import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import polarisENTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
+import { CrispChat } from "../components/CrispChat";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  const { session } = await authenticate.admin(request);
+  return { apiKey: process.env.SHOPIFY_API_KEY || "", shop: session.shop };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, shop } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -35,6 +36,7 @@ export default function App() {
           <Link to="/app/settings">Settings</Link>
         </ui-nav-menu>
         <Outlet />
+        <CrispChat shopDomain={shop} />
       </PolarisAppProvider>
     </AppProvider>
   );
