@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-const CRISP_WEBSITE_ID = "8a3a03a6-873f-4e7a-a8ca-57ee41e7cca8";
+const CRISP_WEBSITE_ID = "a729f784-5177-433b-bd89-0addbf7e28c7";
 
 export function CrispChat({ shopDomain }: { shopDomain?: string }) {
   useEffect(() => {
