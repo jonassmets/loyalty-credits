@@ -1,0 +1,73 @@
+# Loyalty Credits — volledige NAS-stack: postgres + app (CreditClub) + api +
+# cloudflared-tunnel. Bouw-op-NAS (geen ghcr/CI nodig).
+#
+# GEPARKEERD ÉN STARTBAAR:
+#   docker compose up -d      → start alles
+#   docker compose down       → stopt alles (data blijft in het volume)
+# `restart: unless-stopped` laat een DRAAIENDE stack een NAS-reboot overleven,
+# maar start niets vanzelf na een `down`. Precies "parkeren maar startbaar".
+#
+# Verwachte mappenstructuur in de projectmap op de NAS
+# (zie deploy/nas/README.md voor de exacte commando's):
+#   loyalty-credits/
+#     docker-compose.yml   ← dit bestand
+#     .env                 ← kopie van .env.example, ingevuld
+#     app/                 ← git clone van loyalty-credits
+#     api/                 ← git clone van shopify-loyalty-api
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: loyalty-postgres
+    environment:
+      POSTGRES_USER: loyalty
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: loyalty
+    volumes:
+      - loyalty-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loyalty -d loyalty"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: ./app
+    container_name: loyalty-app
+    environment:
+      DATABASE_URL: "postgresql://loyalty:${POSTGRES_PASSWORD}@postgres:5432/loyalty"
+      SHOPIFY_API_KEY: ${SHOPIFY_API_KEY}
+      SHOPIFY_API_SECRET: ${SHOPIFY_API_SECRET}
+      SHOPIFY_APP_URL: ${SHOPIFY_APP_URL}
+      SCOPES: ${SCOPES}
+      PORT: "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    container_name: loyalty-api
+    environment:
+      PORT: "3000"
+      SHOPIFY_SHOP: ${SHOPIFY_SHOP}
+      SHOPIFY_API_KEY: ${SHOPIFY_API_KEY}
+      SHOPIFY_API_SECRET: ${SHOPIFY_API_SECRET}
+      SHOPIFY_ADMIN_ACCESS_TOKEN: ${SHOPIFY_ADMIN_ACCESS_TOKEN}
+    restart: unless-stopped
+
+  # Token-gebaseerde Cloudflare-tunnel. De ingress (welke hostname → welke
+  # service) configureer je in het Cloudflare-dashboard, niet hier:
+  #   loyalty.kattenberg118.be      → http://app:3000
+  #   loyalty-api.kattenberg118.be  → http://api:3000   (alleen als de winkel /spend gebruikt)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: loyalty-tunnel
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on: [app, api]
+
+volumes:
+  loyalty-db:

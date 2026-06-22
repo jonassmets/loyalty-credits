@@ -1,0 +1,33 @@
+# Render Blueprint — "terug naar Render" in één keer.
+#
+# Dashboard → New → Blueprint → kies deze repo (de branch waarop dit bestand
+# staat). Render maakt de Postgres + de web-service aan en vult DATABASE_URL
+# automatisch. De Shopify-secrets staan op sync:false → die vul je daarna in
+# het dashboard in (ze komen dus niet in git).
+#
+# Let op: dit dekt enkel de app (CreditClub) + haar database. De kleine
+# `shopify-loyalty-api` is een aparte repo met een eigen (web-)service.
+databases:
+  - name: loyalty-credits-db
+    plan: free
+
+services:
+  - type: web
+    name: loyalty-credits
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run docker-start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: loyalty-credits-db
+          property: connectionString
+      - key: SHOPIFY_API_KEY
+        sync: false
+      - key: SHOPIFY_API_SECRET
+        sync: false
+      - key: SHOPIFY_APP_URL
+        sync: false
+      - key: SCOPES
+        value: read_orders,write_orders,read_customers,write_customers,read_store_credit_accounts,write_store_credit_account_transactions
