@@ -1,0 +1,61 @@
+# CreditClub — self-hosted op Synology NAS
+#
+#  Normaal draaien (geparkeerd, tunnel UIT):
+#     docker compose up -d --build
+#
+#  Tunnel erbij starten (app publiek bereikbaar voor Shopify):
+#     docker compose --profile tunnel up -d
+#
+#  Tunnel weer parkeren (app blijft lokaal draaien):
+#     docker compose stop cloudflared
+#
+#  Alles stoppen:
+#     docker compose down            (data blijft in volume 'db-data')
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-creditclub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?zet POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-creditclub}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-creditclub} -d ${POSTGRES_DB:-creditclub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SHOPIFY_API_KEY: ${SHOPIFY_API_KEY:?zet SHOPIFY_API_KEY in .env}
+      SHOPIFY_API_SECRET: ${SHOPIFY_API_SECRET:?zet SHOPIFY_API_SECRET in .env}
+      SHOPIFY_APP_URL: ${SHOPIFY_APP_URL:?zet SHOPIFY_APP_URL in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-creditclub}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-creditclub}
+    ports:
+      # Lokaal op de NAS bereikbaar op http://<nas-ip>:${APP_PORT}
+      - "${APP_PORT:-3000}:3000"
+
+  # Cloudflare Tunnel — start ALLEEN met:  docker compose --profile tunnel up -d
+  # Geparkeerd zolang je het 'tunnel' profiel niet activeert.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+
+volumes:
+  db-data:

@@ -1,0 +1,17 @@
+node_modules
+build
+.cache
+.react-router
+dist
+.git
+.gitignore
+.env
+*.local
+prisma/dev.db
+prisma/dev.db-journal
+extensions/*/node_modules
+extensions/*/dist
+npm-debug.log*
+.DS_Store
+NAS-DEPLOY.md
+README.md
