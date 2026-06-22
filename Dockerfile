@@ -1,30 +1,19 @@
 # CreditClub — Shopify-app (React Router + Prisma op Postgres).
 #
-# Debian-slim i.p.v. alpine: Prisma's standaard query-engine draait zo zonder
-# extra binaryTargets-gedoe (alpine = musl → vraagt een aparte engine).
-# De build genereert de Prisma-client + bouwt de app. Bij het starten draait
-# `docker-start` (zie package.json) = `prisma generate && prisma migrate deploy`
-# gevolgd door `react-router-serve`. Migrate-deploy heeft de DB nodig, dus die
-# stap gebeurt bewust pas bij runtime (postgres moet dan up zijn).
-FROM node:20-slim
-
-# OpenSSL is nodig voor de Prisma-engine op debian-slim.
-RUN apt-get update -y \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
+# node:20 (full debian) i.p.v. -slim: bevat openssl voor de Prisma-engine, dus
+# GEEN `apt-get` nodig — op de Synology-NAS faalt apt-get-tijdens-build op
+# seccomp. Bouw op de NAS met de legacy builder: `DOCKER_BUILDKIT=0 docker
+# compose build` (BuildKit zet een seccomp-profiel dat de NAS-kernel weigert).
+#
+# --legacy-peer-deps: de React/Polaris peer-dependency-range botst onder `npm ci`
+# (Render's `npm install` is impliciet toleranter). Bij start draait `docker-start`
+# = prisma generate && prisma migrate deploy && react-router-serve.
+FROM node:20
 WORKDIR /app
-
-# Eerst alleen de manifests → betere layer-cache bij code-wijzigingen.
 COPY package*.json ./
-RUN npm ci
-
-# Daarna de rest + de build (Prisma-client + React-Router-build).
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npx prisma generate && npm run build
-
 ENV NODE_ENV=production
 EXPOSE 3000
-
-# docker-start = prisma generate && prisma migrate deploy && react-router-serve
 CMD ["npm", "run", "docker-start"]

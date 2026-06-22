@@ -17,6 +17,25 @@ terug naar Render.
 
 ---
 
+## ✅ Status: uitgevoerd 2026-06-22 (draait op de NAS)
+
+De stack staat live op `/volume1/k118-studio/projects/loyalty-credits/`: postgres 18
++ app + api + tunnel draaien, 53 `LoyaltyLog`-rijen gemigreerd, tunnel
+`loyalty.kattenberg118.be` geregistreerd, `project_type=compose` gezet (Start/Stop
+in de studio). **Nog te doen door Jonas:** `SHOPIFY_API_SECRET` +
+`SHOPIFY_ADMIN_ACCESS_TOKEN` in `.env` zetten + `docker compose up -d app`, de
+Shopify Partner app-URL/redirects naar de tunnel, en Render afbouwen.
+
+### NAS-specifieke gotchas (waar deze migratie tegenaan liep)
+- **Bouwen:** `DOCKER_BUILDKIT=0` verplicht (BuildKit → "seccomp not supported" op Synology).
+- **App-image:** `node:20` (full, openssl) + `npm ci --legacy-peer-deps` (geen apt-get).
+- **Postgres 18:** volume op `/var/lib/postgresql` (niet `/…/data`).
+- **Tunnel-token:** via `TUNNEL_TOKEN`-env, niet als `--token` op de command-line.
+- **DB-migratie:** Render verbergt de externe DB-URL → data overgezet via read-only
+  `SELECT`s → `INSERT … ON CONFLICT DO NOTHING` (geen `pg_dump`/wachtwoord nodig).
+
+---
+
 ## 1. Cloudflare-tunnel aanmaken
 
 1. Cloudflare-dashboard → **Zero Trust → Networks → Tunnels → Create a tunnel**
